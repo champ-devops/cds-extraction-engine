@@ -1,0 +1,39 @@
+# Top-level secrets configuration for BuildKit
+secrets:
+  npmrc:
+    file: ~/.npmrc
+
+services:
+
+  server-app:
+    container_name: ${CDS_PROJECT_NAME}-${CDS_RELEASEMODE}-server-app
+    platform: linux/x86_64
+    network_mode: bridge
+    working_dir: /server
+    build:
+      context: .
+      dockerfile: LocalDevelopment-Dockerfile
+      secrets:
+        - npmrc
+      provenance: false
+    command: nodemon src/index.js
+    volumes:
+      - ./backend/src:/server/src
+      - ./${CDS_PROJECT_NAME}.${CDS_RELEASEMODE}.appConfig.json:/${CDS_PROJECT_NAME}.${CDS_RELEASEMODE}.appConfig.json
+      - ./_MEDIA_PROCESSING:/_MEDIA_PROCESSING
+      - ./_MEDIA_CACHE:/_MEDIA_CACHE
+    restart: unless-stopped
+    ports:
+      - ${SERVER_PORT}:${SERVER_PORT}
+    environment:
+      - HOST_HOSTNAME
+      - CDS_RELEASEMODE
+      - CDS_PROJECT_NAME
+      - SERVER_PORT
+      - LOG_LEVEL=debug
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"

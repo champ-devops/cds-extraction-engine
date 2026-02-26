@@ -1,0 +1,50 @@
+{
+	"LOGGER": {
+		"LEVEL": "info"
+	},
+	"LOGGER_DISABLED": {
+		"CDS_REMOTE_LOG_URL": "https://qcserverlog.champds.com/api/log",
+		"CDS_REMOTE_LOG_LEVEL": "error",
+		"CDS_REMOTE_LOG_API_KEY": ""
+	},
+	"SERVER": {
+		"SERVER_HOST": "0.0.0.0",
+		"SERVER_PORT": 7021,
+		"SERVER_PORT_PRIVATE": 7022,
+		"SERVER_BASE_URL": "/v1"
+	},
+	"MEDIA": {
+    "TEMP_BASE_PATH": "/_MEDIA_PROCESSING",
+		"LOCAL_BASE_PATH": "/_MEDIA_CACHE",
+		"LOCAL_AAC_CACHE_SECS": 86400,
+		"DFW_BASE_URL": "http://192.168.68.84:5080/",
+		"SILENCE_NOISE_DB": -35,
+		"SILENCE_MIN_SECS": 60,
+		"SILENCE_IS_CHUNKING_ENABLED": true,
+		"SILENCE_MAX_SEGMENT_COUNT": 12
+	},
+	"DEEPGRAM": {
+		"NAME": "DEV_CDS_AUTOMATED_MINUTES",
+		"SECRET": "bef6baee3cf3077f9eb9247d0c72881d44da7b0f",
+		"BASE_URL": "https://api.deepgram.com/v1"
+	},
+	"ASSEMBLYAI": {
+		"NAME": "DEV_CDS_AUTOMATED_MINUTES",
+		"SECRET": "4e04fde0d2204d47b389990d454b9eec",
+		"BASE_URL": "https://api.assemblyai.com/v2"
+	},
+	"OFFSITE_MEDIA_S3_STORAGE": {
+		"UPLOAD_MEDIA_S3_ENDPOINT": "https://s3.us-west-000.backblazeb2.com",
+		"UPLOAD_MEDIA_S3_REGION": "us-west-000",
+		"UPLOAD_MEDIA_S3_BUCKET": "com-champds-storage-b2-vod",
+		"UPLOAD_MEDIA_S3_ACCESS_KEY_ID": "000c5dc4092fe1f0000000008",
+		"UPLOAD_MEDIA_S3_SECRET_ACCESS_KEY": "K000YxW0aoRRtSowaWtVmL0LAfjX6OQ"
+	},
+	"CORE_API": {
+		"SERVER_HOST": "host.docker.internal",
+		"SERVER_PORT": 7001,
+		"URL_PREFIX": "/v1",
+		"API_TOKEN": "com-champds-coreapi.LOCALDEV:cds-automated-minutes:85c52bd9-0304-4173-83c4-8754797d41c3",
+		"TIMEOUT_CONNECT_MS": 10000
+	}
+}

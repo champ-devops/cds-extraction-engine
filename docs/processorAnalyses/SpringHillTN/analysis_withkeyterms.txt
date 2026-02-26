@@ -1,0 +1,27 @@
+assemblyai.vtt vs assemblyai_withkeyterms.vtt
+
+  File size: base has 7,346 lines / 1,519 cues; keyterms has 6,770 lines / 1,377 cues. The keyterms version is ~10% smaller.
+
+  Key term impact on name accuracy
+
+  ┌──────────┬─────────────────────────────────────────────┬──────────────────┬─────────────┐
+  │   Name   │              Base spelling(s)               │  With key terms  │ Net correct │
+  ├──────────┼─────────────────────────────────────────────┼──────────────────┼─────────────┤
+  │ Canepari │ Canapari (4×), Kanapari (2×), missed rest   │ Canepari (9×) ✓  │ +9 correct  │
+  ├──────────┼─────────────────────────────────────────────┼──────────────────┼─────────────┤
+  │ Fuqua    │ Fuquay (11×), Fuqua (4×), Fuqu (2×)         │ Fuqua (17×) ✓    │ +13 correct │
+  ├──────────┼─────────────────────────────────────────────┼──────────────────┼─────────────┤
+  │ Linville │ Linville (23×), Lindell (1×), Lindvall (1×) │ Linville (25×) ✓ │ +2 correct  │
+  ├──────────┼─────────────────────────────────────────────┼──────────────────┼─────────────┤
+  │ Jimenez  │ Jimenez (11×), Jimendez (1×)                │ Jimenez (12×) ✓  │ +1 correct  │
+  ├──────────┼─────────────────────────────────────────────┼──────────────────┼─────────────┤
+  │ Hartwell │ Hartwell (10×)                              │ Hartwell (11×) ✓ │ +1 correct  │
+  └──────────┴─────────────────────────────────────────────┴──────────────────┴─────────────┘
+
+  Most names (Murray, Davis, Carter, Napier, Allen, etc.) were already transcribed correctly and show no delta.
+
+  Other observations
+
+  - The key term version has 238 fewer words and 142 fewer cues — suggesting the model also changed segmentation/chunking behavior, not just spelling
+  - The biggest beneficiaries are Fuqua (corrected from "Fuquay" consistently) and Canepari (corrected from two different misspellings)
+  - Early in the transcript there are also minor text quality differences unrelated to names (e.g., "5:45pm" → "5:45 p.m.", "Alderman" vs "Aldermen")

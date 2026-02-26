@@ -1,0 +1,224 @@
+## CI/CD Pipeline and Configuration Management
+
+This document describes the GitHub Actions CI/CD pipeline setup and how configuration secrets and environment variables are managed.
+
+---
+
+### Pipeline Overview
+
+The project uses three GitHub Actions workflows in `.github/workflows/`:
+
+| Workflow File | Name | Trigger | Purpose |
+|---------------|------|---------|---------|
+| `buildAndDeployToDockerHub_DEVELOPMENT.yaml` | `BuildContainersDevelopment` | Push to `main` | Build dev containers |
+| `buildAndDeployToDockerHub_PRODUCTION.yaml` | `BuildContainersProduction` | Push to `production` | Build prod containers |
+| `deployToServer.yaml` | `DeployChampDSAdmin` | After build workflows complete | Deploy to remote VM |
+
+**Flow:**
+```
+Push to main/production
+        ↓
+Build Workflow (dev or prod)
+        ↓
+    Build Docker containers (server-app, nginx-and-website)
+        ↓
+    Push to Docker Hub
+        ↓
+Deploy Workflow (triggered on build success)
+        ↓
+    SCP files to remote server via jump bastion
+        ↓
+    docker compose up on remote server
+```
+
+---
+
+### GitHub Environments
+
+The pipelines use GitHub Environments to scope secrets:
+- **`development`** - Used when workflow is `BuildContainersDevelopment`
+- **`production`** - Used when workflow is `BuildContainersProduction`
+
+Environment is selected dynamically:
+```yaml
+environment: ${{ github.workflow == 'BuildContainersProduction' && 'production' || 'development' }}
+```
+
+---
+
+### Required GitHub Secrets (per environment)
+
+| Secret | Purpose |
+|--------|---------|
+| `DOCKERHUB_USERNAME` | Docker Hub login username |
+| `DOCKERHUB_TOKEN` | Docker Hub access token |
+| `NPM_TOKEN` or `CDS_NPM_TOKEN` | NPM registry auth token for private packages |
+| `CDS_NPM_REGISTRY` | (Optional) Custom NPM registry URL |
+| `FULL_CONFIG_JSON64` | Base64-encoded full app configuration JSON |
+| `SSH_KEY_GITHUB_DEPLOY` | Private SSH key for deployment to remote server |
+
+### Required GitHub Variables (repository-level)
+
+| Variable | Purpose |
+|----------|---------|
+| `CDS_PROJECT_NAME` | Project identifier (e.g., `champdsadmin`) |
+
+---
+
+### Configuration JSON (`FULL_CONFIG_JSON64`)
+
+The main application configuration is stored as a **base64-encoded JSON** in the `FULL_CONFIG_JSON64` secret. This JSON contains all runtime configuration for the server app.
+
+**Structure (expected keys):**
+```json
+{
+  "server": {
+    "SERVER_PORT": 8080,
+    "PORT_API": 3001,
+    "PORT_SOCKETIO": 3002,
+    "PATH_SOCKETIO": "/socket.io"
+  },
+  "monitor": {
+    "MONITOR_USERNAME": "...",
+    "MONITOR_PASSWORD": "..."
+  },
+  "logger": { ... },
+  "environment": { ... },
+  "coreAPI": { ... },
+  "auth0": { ... }
+}
+```
+
+**How it's used:**
+1. **Build time**: Decoded to extract `PATH_SOCKETIO` for React build args
+2. **Deploy time**: Decoded and written to `{PROJECT}.{MODE}.appConfig.json` on the server
+3. **Runtime**: Server's `appConfig.js` reads the JSON file based on `CDS_PROJECT_NAME` and `CDS_RELEASEMODE` env vars
+
+---
+
+### NPM Authentication for Private Packages
+
+Private `@champds/*` packages require NPM authentication during Docker builds.
+
+**Build-time secret handling:**
+1. Workflow creates a temporary `.npmrc` file with the auth token
+2. Docker BuildKit mounts it as a secret (never stored in image layers)
+3. `.npmrc` is cleaned up after build
+
+```yaml
+# In workflow
+- name: Create npmrc file for BuildKit secret
+  run: |
+    printf 'registry=https://%s/\n//%s/:_authToken=%s\n' "$REG" "$REG" "$TOKEN" > .npmrc
+
+# In Dockerfile
+RUN --mount=type=secret,id=npmrc,target=/root/.npmrc npm install
+```
+
+---
+
+### Environment Variables at Runtime
+
+**Injected via docker-compose environment:**
+| Variable | Source | Purpose |
+|----------|--------|---------|
+| `CDS_PROJECT_NAME` | GitHub vars | Project identifier |
+| `CDS_RELEASEMODE` | Workflow logic | `development` or `production` |
+| `CDS_COMMIT_ID` | GitHub event | Git commit hash (used as image tag) |
+| `SERVER_PORT` | Config JSON | Main exposed port |
+| `PORT_API` | Config JSON | Internal API port |
+| `PORT_SOCKETIO` | Config JSON | Socket.IO port |
+| `PATH_SOCKETIO` | Config JSON | Socket.IO URL path |
+| `LOG_LEVEL` | Workflow logic | `debug` (dev) or `warning` (prod) |
+| `HOST_HOSTNAME` | Server `/etc/environment` | Host machine name |
+| `CDS_DOCKER_DNS` | Server `/etc/environment` | Docker DNS server |
+
+**React build args (baked into static build):**
+| Arg | Purpose |
+|-----|---------|
+| `REACT_APP_PATH_SOCKETIO` | Socket.IO path for client connection |
+| `REACT_APP_CDS_SITE_MODE` | `development` or `production` |
+| `REACT_APP_PUBLIC_PROJECT_NAME` | Display name in UI |
+
+---
+
+### Deployment Process
+
+The `deployToServer.yaml` workflow:
+
+1. **Connects via SSH through a jump bastion**
+   ```
+   GitHub Runner → Jump Bastion (port 22022) → Target Server
+   ```
+
+2. **Files transferred to target:**
+   - `deployed-compose.yml`
+   - `deployed-nginx-app.conf.template`
+   - `telegraf.conf`
+   - `{PROJECT}.{MODE}.appConfig.json` (decoded from secret)
+   - `{PROJECT}.{MODE}.env` (generated from config values)
+   - `.torun` script (docker commands)
+
+3. **Runs on target server:**
+   ```bash
+   docker login
+   docker compose pull
+   docker compose up -d --force-recreate
+   ```
+
+---
+
+### Server Configuration Loading (`appConfig.js`)
+
+The server loads configuration at startup:
+
+```javascript
+const cdsProjectName = process.env.CDS_PROJECT_NAME;
+const cdsReleaseMode = process.env.CDS_RELEASEMODE;
+const confFilePath = `../${cdsProjectName}.${cdsReleaseMode}.appConfig.json`;
+
+// Read and parse JSON config file
+const configTEXT = await fs.readFile(confFilePath, 'utf8');
+appConfig = JSON.parse(configTEXT);
+```
+
+**Important:** Config file is mounted as a volume in `deployed-compose.yml`:
+```yaml
+volumes:
+  - ./${CDS_PROJECT_NAME}.${CDS_RELEASEMODE}.appConfig.json:/${CDS_PROJECT_NAME}.${CDS_RELEASEMODE}.appConfig.json
+```
+
+---
+
+### Adding New Configuration
+
+**To add a new secret/config value:**
+
+1. **For build-time values:**
+   - Add to `FULL_CONFIG_JSON64` JSON structure
+   - Extract in workflow's "Get Data from JSON file" step
+   - Pass as Docker build-arg if needed for React
+
+2. **For runtime server values:**
+   - Add to `FULL_CONFIG_JSON64` JSON structure
+   - Access via `appConfig.yourKey` in server code
+
+3. **For deployment environment:**
+   - Add to `ENV_TMP_FILE` generation in deploy workflow
+   - Add to `deployed-compose.yml` environment section
+
+**To add a new GitHub secret:**
+
+1. Go to repo Settings → Secrets and variables → Actions
+2. Add secret to appropriate environment (development/production)
+3. Reference in workflow as `${{ secrets.SECRET_NAME }}`
+
+---
+
+### Security Notes
+
+- NPM tokens are never stored in Docker image layers (BuildKit secrets)
+- SSH keys exist only in workflow memory
+- Config JSON is base64-encoded but not encrypted; rely on GitHub's secret storage
+- `.npmrc` files are cleaned up with `if: always()` step
+- Deployment SSH uses key-based auth only, no password exposure

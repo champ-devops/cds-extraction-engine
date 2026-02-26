@@ -1,0 +1,86 @@
+  VTT Transcription Analysis: Spring Hill TN Board Meeting
+
+  Files compared: revai.vtt, deepgram.vtt, assemblyai.vtt
+
+  ---
+  File Overview
+
+  ┌───────────────────┬────────┬──────────┬────────────┐
+  │      Metric       │ Rev.ai │ Deepgram │ AssemblyAI │
+  ├───────────────────┼────────┼──────────┼────────────┤
+  │ Total lines       │ 7,188  │ 9,907    │ 7,346      │
+  ├───────────────────┼────────┼──────────┼────────────┤
+  │ Approx. cue count │ ~1,476 │ ~2,190   │ ~1,519     │
+  ├───────────────────┼────────┼──────────┼────────────┤
+  │ Avg. cue duration │ ~5–6s  │ ~1–2s    │ ~5–6s      │
+  └───────────────────┴────────┴──────────┴────────────┘
+
+  ---
+  Accuracy Comparison (Specific Examples)
+
+  Proper nouns — names (most revealing):
+
+  ┌───────────────────┬──────────────┬─────────────────────────┬──────────────────────────────────────┐
+  │      Phrase       │    Rev.ai    │        Deepgram         │              AssemblyAI              │
+  ├───────────────────┼──────────────┼─────────────────────────┼──────────────────────────────────────┤
+  │ Prayer leader     │ "Mr Eric d"  │ "Mr. Drill"             │ "Mr. Eric Droke" ✓                   │
+  ├───────────────────┼──────────────┼─────────────────────────┼──────────────────────────────────────┤
+  │ Vice Mayor        │ "Linville" ✓ │ "Lindvill" ✗            │ "Linville" ✓                         │
+  ├───────────────────┼──────────────┼─────────────────────────┼──────────────────────────────────────┤
+  │ Alderman          │ "Fuquay" ✓   │ "Fuqua" (inconsistent)  │ "Fuquay" ✓                           │
+  ├───────────────────┼──────────────┼─────────────────────────┼──────────────────────────────────────┤
+  │ Committee acronym │ "BAC" ✗      │ "BFAC" ✓                │ "BFAC" ✓                             │
+  ├───────────────────┼──────────────┼─────────────────────────┼──────────────────────────────────────┤
+  │ Canari/Canapari   │ "Canari"     │ "Canapari" (consistent) │ "Canipari"/"Kanapari" (inconsistent) │
+  └───────────────────┴──────────────┴─────────────────────────┴──────────────────────────────────────┘
+
+  Word-level errors:
+
+  ┌────────────────────┬───────────────────────────┬──────────────────────┬─────────────────────┐
+  │      Context       │          Rev.ai           │       Deepgram       │     AssemblyAI      │
+  ├────────────────────┼───────────────────────────┼──────────────────────┼─────────────────────┤
+  │ "dicey era"        │ "dicey uh era"            │ "dicey, error few" ✗ │ "dicey era" ✓       │
+  ├────────────────────┼───────────────────────────┼──────────────────────┼─────────────────────┤
+  │ "I-65 interchange" │ "I 65"                    │ "I sixty five"       │ "I60 interchange" ✗ │
+  ├────────────────────┼───────────────────────────┼──────────────────────┼─────────────────────┤
+  │ "HVAC services"    │ "HVAC" ✓                  │ "HVAC" ✓             │ "H VAC" ✗           │
+  ├────────────────────┼───────────────────────────┼──────────────────────┼─────────────────────┤
+  │ Project name       │ "project project Swift" ✗ │ "Project Swift" ✓    │ "Project Swift" ✓   │
+  └────────────────────┴───────────────────────────┴──────────────────────┴─────────────────────┘
+
+  Resolution number formatting:
+
+  ┌────────────┬────────────────────────────────────────────────────────────────────────┐
+  │  Service   │                              Format used                               │
+  ├────────────┼────────────────────────────────────────────────────────────────────────┤
+  │ Rev.ai     │ "resolution 26 31" (split as two numbers)                              │
+  ├────────────┼────────────────────────────────────────────────────────────────────────┤
+  │ Deepgram   │ "resolution twenty six thirty one" (spelled out — wastes screen space) │
+  ├────────────┼────────────────────────────────────────────────────────────────────────┤
+  │ AssemblyAI │ "Resolution 2631" ✓ (numeric, clean)                                   │
+  └────────────┴────────────────────────────────────────────────────────────────────────┘
+
+  ---
+  Formatting & Readability (Critical for Captions)
+
+  Rev.ai — Almost zero punctuation. Sentences run together. Filler words (uh, um) are kept throughout, and there is a non-standard <affirmative> tag that is not valid VTT. Poor readability for viewers.
+
+  Deepgram — Good punctuation where text exists, but cues are fragmented into 1–2 second chunks, often just one or two words. This produces choppy, unreadable captions that flash too quickly on screen. Unsuitable for
+   closed captioning without post-processing.
+
+  AssemblyAI — Best sentence structure and punctuation. Cue sizes are appropriate (~5s). Filler words are mostly cleaned up. Resolution numbers are formatted numerically. Most consistent and readable output.
+
+  ---
+  Verdict
+
+  AssemblyAI is the best option for closed captioning accuracy and readability. It has the cleanest formatting, fewest word errors, best proper noun recognition, and caption cue sizes that are appropriate for
+  on-screen display.
+
+  Rev.ai is second in word-level accuracy but is nearly unusable as-is due to missing punctuation and filler words — it would need significant post-processing.
+
+  Deepgram produces the most fragmented output (2,190 cues vs ~1,500 for the others) and has the most word-level errors among the three. It is the weakest option for this use case without significant reformatting.
+
+  ---
+  One caveat: The Alderman's name (spelled variously as Canari / Canapari / Canipari / Kanapari) is likely a locally-known name that none of the services confidently recognized. All three got it wrong or
+  inconsistently — this is a known limitation of AI transcription for local proper nouns.
+

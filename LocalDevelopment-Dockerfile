@@ -1,0 +1,29 @@
+# syntax=docker/dockerfile:1
+# STAGE I
+FROM champdsdevops/node:22.22-alpine AS builder
+
+WORKDIR /app
+
+ENV PATH /app/node_modules/.bin:$PATH
+
+COPY ./backend/package.json .
+
+# Use BuildKit secrets for npm authentication (token never stored in layer history)
+RUN --mount=type=secret,id=npmrc,target=/root/.npmrc \
+    npm install && npm install -g nodemon
+
+# STAGE II
+FROM champdsdevops/node:22.22-alpine
+WORKDIR /server
+
+RUN apk add --no-cache ffmpeg
+
+COPY --from=builder /app/node_modules /server/node_modules
+COPY --from=builder /usr/local/lib/ /usr/local/lib/
+COPY --from=builder /usr/local/bin/ /usr/local/bin/
+
+# Add code
+COPY ./backend/src ./src
+COPY ./backend/package.json .
+
+CMD nodemon src/index.js

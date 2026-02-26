@@ -1,0 +1,15 @@
+---
+alwaysApply: true
+---
+Our company provides Agenda Management and Video Streaming to municipalities.  A meeting in our nomenclature is called an "Event" and contains one or more of the following:
+- Agenda Items List (title, description, item attachments)
+- Media (HLS-based playback of video and audio of the meeting)
+- Attachment Media (available in the Agenda Area, but for the event itself and not a single agenda item)
+- Timeline (links to offsets in the media file of the relevant sections)
+- Minute Items (title / description [but mainly description] either tied to an agenda item or standalone that describe what happened during the meeting)
+
+We have a few items of Jargon that we typically use:
+- "MyDot" refers to the area where customers manipulate the events.  That is, it's the "platform" they interact with.
+- "PlayDot" refers to there area where the public views things that the customer sets up on MyDot
+- "Customer" and "Publisher" are used interchangibly and are synonymous
+

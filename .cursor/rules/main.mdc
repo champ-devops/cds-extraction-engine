@@ -1,0 +1,751 @@
+---
+alwaysApply: true
+---
+## Formatting Preferences
+- Preferred line width: 160 characters
+
+## Debugging Methodology
+
+### Fastify + Mongoose Serialization Issues
+
+When encountering serialization issues with Fastify and Mongoose documents:
+
+**Step-by-step debugging approach:**
+1. **Isolate the issue** by commenting out response schemas (201, 400, etc.) temporarily
+2. **Re-run tests** to confirm the issue is Fastify schema-related, not data-related
+3. **Use proper schema references** instead of hardcoded wrapper objects
+4. **Let the actual data structure drive the schema**, not the other way around
+
+**Example of the debugging process:**
+```javascript
+// ❌ WRONG - Hardcoded wrapper schema
+response: {
+  201: {
+    type: 'object',
+    properties: {
+      message: { type: 'string' },
+      id: { type: 'string' }
+    }
+  }
+}
+
+// ✅ CORRECT - Use actual schema reference
+response: {
+  201: messageResponseSchema  // References the actual message structure
+}
+```
+
+**Common causes of serialization issues:**
+- Fastify schema validation interfering with Mongoose document serialization
+- Hardcoded wrapper objects that don't match actual response structure
+- Missing schema references for complex objects
+
+### Response Schema Best Practices
+
+**NEVER use responseKey in schemas - we return plain objects, not wrapped objects:**
+
+```javascript
+// ✅ CORRECT - No responseKey, plain object response
+const contactResponseSchema = createSingleResponseSchema(Contact.schema, { 
+  excludeFields: ['__v', 'deletedAt'],
+  includeTimestamps: true 
+});
+
+// ❌ WRONG - Don't use responseKey
+const contactResponseSchema = createSingleResponseSchema(Contact.schema, { 
+  responseKey: 'contact',  // This wraps the response
+  excludeFields: ['__v', 'deletedAt'],
+  includeTimestamps: true 
+});
+```
+
+**ALWAYS use pre-defined schemas for response definitions:**
+
+```javascript
+// ✅ CORRECT - Use schema references
+response: {
+  201: contactResponseSchema,
+  200: contactResponseSchema
+}
+
+// ❌ WRONG - Hardcoded wrapper objects
+response: {
+  201: {
+    type: 'object',
+    properties: {
+      message: { type: 'string' },
+      contact: { type: 'object' }
+    }
+  }
+}
+```
+
+**Schema reference patterns:**
+- `201: modelResponseSchema` - For creation responses
+- `200: modelResponseSchema` - For update responses  
+- `200: createSoftDeleteResponseSchema()` - For soft delete operations
+- `200: createHardDeleteResponseSchema()` - For hard delete operations
+
+**Benefits of using schema references:**
+- Ensures response structure matches actual data
+- Prevents serialization issues with Mongoose documents
+- Maintains consistency across endpoints
+- Reduces maintenance overhead
+
+## Delete Operation Standards
+
+**NEVER assume delete operations succeeded - always verify the result:**
+
+```javascript
+// ✅ CORRECT - Check the result
+const result = await contact.markDeleted();
+if (!result || !result._id) {
+  throw new Error('Soft delete operation failed - no result returned');
+}
+
+// ❌ WRONG - Assuming success
+await contact.markDeleted();
+res.status(200).send({ modifiedCount: 1, acknowledged: true });
+```
+
+**Use shared response schemas for delete operations:**
+
+```javascript
+// ✅ CORRECT - Use shared schemas
+response: {
+  200: createSoftDeleteResponseSchema()
+}
+
+// ❌ WRONG - Hardcoded response structure
+response: {
+  200: {
+    type: 'object',
+    properties: {
+      modifiedCount: { type: 'number' },
+      acknowledged: { type: 'boolean' }
+    }
+  }
+}
+```
+
+**Always verify hard delete results:**
+
+```javascript
+// ✅ CORRECT - Check hard delete result
+const result = await contact.reallyDelete();
+if (!result || !result.acknowledged) {
+  throw new Error('Hard delete operation failed - no result returned or not acknowledged');
+}
+
+// ❌ WRONG - Assuming success
+await contact.reallyDelete();
+res.status(200).send({ deletedCount: 1, acknowledged: true });
+```
+
+## Centralized Response Standards
+
+**NEVER hardcode response objects - always use centralized functions:**
+
+```javascript
+// ✅ CORRECT - Use centralized functions
+import { createSoftDeleteResponse, createHardDeleteResponse } from '../src/utils/mongooseToJsonSchema.js';
+
+res.status(200).send(createSoftDeleteResponse());
+res.status(200).send(createHardDeleteResponse());
+
+// ❌ WRONG - Hardcoded response objects
+res.status(200).send({ modifiedCount: 1, acknowledged: true });
+res.status(200).send({ deletedCount: 1, acknowledged: true });
+```
+
+**Response objects should be defined in ONE place** (`mongooseToJsonSchema.js`) and reused throughout the codebase to ensure consistency.
+
+## Validation Standards for Delete Operations
+
+**Always validate state before performing delete operations:**
+
+```javascript
+// ✅ CORRECT - Check if already deleted
+if (credential.deletedAt) {
+  return res.status(400).send({
+    error: 'CREDENTIAL_ALREADY_DELETED',
+    details: { message: 'Credential is already deleted' }
+  });
+}
+
+// ✅ CORRECT - Check if not deleted before restore
+if (!credential.deletedAt) {
+  return res.status(400).send({
+    error: 'CREDENTIAL_NOT_DELETED', 
+    details: { message: 'Credential is not deleted' }
+  });
+}
+```
+
+**Never assume the current state** - always validate before performing state-changing operations.
+
+---
+
+## Quick Reference
+
+| Context | Pattern | Example |
+|---------|---------|---------|
+| Time parameters | `*MS` | `timeoutMS`, `intervalMS` |
+| TTL properties | `*TTL` | `remainingTTL`, `cacheTTLMS` |
+| Event properties | Consistent casing | `ageMS`, `warningThresholdMS` |
+| Environment vars | SCREAMING_SNAKE | `CDS_JOB_QUEUE_*_MS` |
+| Defaults | Operational focus | 15min intervals, 2min warnings |
+
+This style guide ensures consistency, readability, and operational safety across the codebase.
+
+## OpenAPI Specification Standards
+
+### Complete Endpoint Documentation
+
+When creating or modifying Fastify routes, ensure complete OpenAPI specifications:
+
+**Required Schema Components:**
+- `tags` - API grouping (e.g., ['Board Items'])
+- `summary` - Brief endpoint description
+- `description` - Detailed endpoint description
+- `params` - URL parameters (for `/:id` routes)
+- `querystring` - Query parameters (for GET routes)
+- `body` - Request body schema (for POST/PUT routes)
+- `response` - Response schemas for all status codes
+
+**Body Schema Requirements:**
+```javascript
+body: {
+  type: 'object',
+  required: ['field1', 'field2'],  // List all required fields
+  properties: {
+    field1: {
+      type: 'string',
+      description: 'Field description'
+    },
+    field2: {
+      type: 'string',
+      pattern: '^[0-9A-HJKMNP-TV-Z]{26}$',  // ULID validation
+      description: 'Field description'
+    }
+  }
+}
+```
+
+**Important:** Sub-documents MUST have their own schema if they are objects or arrays of objects. Always export schema definitions and use them elsewhere to keep from re-specifying things. Only one source of truth for schemas.
+
+**Response Schema Requirements:**
+```javascript
+response: {
+  200: {
+    type: 'object',
+    properties: {
+      message: { type: 'string' },
+      data: { type: 'object' }
+    }
+  }
+}
+```
+
+**Important:** We do NOT want error schemas (400, 500, etc.) in the routes. Error responses are handled centrally by the global error handler in `appListenPublic.js`. Do NOT add error response schemas to route definitions as this interferes with centralized error handling.
+
+**Validation Patterns:**
+- ULID fields: `pattern: '^[0-9A-HJKMNP-TV-Z]{26}$'`
+- Email fields: `pattern: '^[^\s@]+@[^\s@]+\.[^\s@]+$'`
+- Numeric fields: `type: 'string', pattern: '^[0-9]+$'`
+- Enum fields: `enum: ['VALUE1', 'VALUE2', 'VALUE3']`
+
+**Multi-tenant Security:**
+- Always include `customerID` validation in descriptions
+- Document that `customerID` comes from authentication/session
+- Specify which fields are auto-populated vs. required from request
+
+**Error Documentation:**
+- Document all possible error responses (400, 401, 403, 404, 500)
+- Include specific error codes and their meanings
+- Provide clear error message examples
+
+**Example Complete Endpoint:**
+```javascript
+fastify.post('/new', {
+  schema: {
+    tags: ['Resource Name'],
+    summary: 'Create a new resource',
+    description: 'Create a new resource for a customer. Required fields: field1, field2. customerID from auth, creatorID from session.',
+    body: {
+      type: 'object',
+      required: ['field1', 'field2'],
+      properties: {
+        field1: { type: 'string', description: 'Required field' },
+        field2: { type: 'string', description: 'Required field' }
+      }
+    },
+    response: {
+      201: { /* success response */ },
+      400: { /* error response */ },
+      500: { /* server error */ }
+    }
+  }
+});
+```
+
+**Checklist for New/Modified Endpoints:**
+- [ ] All required fields documented in body schema
+- [ ] All optional fields documented in body schema
+- [ ] Proper validation patterns (ULID, email, etc.)
+- [ ] Success response schemas (200, 201, etc.) - NO error schemas
+- [ ] Multi-tenant security documented
+- [ ] Auto-populated fields clearly identified
+- [ ] Session/authentication requirements documented
+
+## Error Handling Standards
+
+### Centralized Error Handling
+
+**NEVER add try-catch blocks to individual route handlers for validation errors.** All error handling is centralized in the global error handler in `appListenPublic.js`.
+
+**NEVER add per-route error response schemas (400, 500, etc.) to route definitions.** Error responses are handled centrally and should not be documented in individual routes.
+
+**Error handling is already implemented for:**
+- Schema validation errors (`err.validation`) → 400 "VALIDATION_ERROR"
+- Mongoose validation errors (`err.name === 'ValidationError'`) → 400 "VALIDATION_ERROR"
+- Other errors → 500 "INTERNAL_SERVER_ERROR"
+
+**If you encounter validation errors returning 500 instead of 400:**
+1. Check if the route is missing proper error handling setup
+2. Verify the global error handler is being used
+3. Do NOT add route-specific error handling
+4. Do NOT add error response schemas to route definitions
+
+### Route Handler Guidelines
+
+**✅ Correct approach:**
+```javascript
+// Let the global error handler catch validation errors
+const newDocument = new Model(data);
+await newDocument.save(); // Validation errors caught by global handler
+```
+
+**❌ Incorrect approach:**
+```javascript
+// Don't add try-catch for validation errors in routes
+try {
+  const newDocument = new Model(data);
+  await newDocument.save();
+} catch (error) {
+  if (error.name === 'ValidationError') {
+    return res.status(400).send({ error: 'VALIDATION_ERROR' });
+  }
+  throw error;
+}
+```
+
+## Sub-document Route Patterns
+
+When implementing sub-document management (like credentials, notes, etc.):
+
+**URL Structure:**
+- GET /:parentId/subdocuments - List all active sub-documents
+- GET /:parentId/subdocuments/:index - Get specific sub-document by array index
+- POST /:parentId/subdocuments/new - Create new sub-document
+- POST /:parentId/subdocuments/:index/update - Update specific sub-document
+- POST /:parentId/subdocuments/:index/markDeleted - Soft delete
+- POST /:parentId/subdocuments/:index/markUndeleted - Restore
+
+**Array Index Handling:**
+- Always use 0-based array indices for sub-document access
+- Validate index bounds before operations
+- Return 404 for out-of-bounds indices
+- Return 404 for deleted sub-documents in GET operations
+
+**CRITICAL: Sub-document Array Index Pitfall with Soft-Delete:**
+If you filter sub-documents (e.g., hide deleted items), the indices shown to clients won't match the actual array indices. This causes bugs where clients send a filtered index but the server uses it as an array index.
+
+**Solutions (in order of preference):**
+1. **Use hard-delete for sub-documents** - Eliminates the filtered/actual index mismatch entirely
+2. **Use unique IDs instead of indices** - Each sub-document gets a ULID; endpoints use `/subdocs/:subdocId` instead of `/subdocs/:index`
+3. **Include `_arrayIndex` in responses** - If using indices, always return the actual array index so clients can use it
+
+**Soft Delete for Sub-documents:**
+- NEVER implement hard delete for sub-documents unless expressly requested
+- Always use soft delete with deletedAt timestamp
+- Filter out deleted sub-documents in GET operations
+- Allow restoration via markUndeleted
+
+## Active vs All Data Endpoints
+
+When implementing endpoints that filter by `deletedAt` status:
+
+**URL Naming Convention:**
+- `GET /resource` - Returns ALL items (including deleted ones with `deletedAt`)
+- `GET /activeResource` - Returns only active items (filters out `deletedAt` items)
+
+**Examples:**
+- `GET /contacts/:id/credentials` - Returns ALL credentials (including deleted)
+- `GET /contacts/:id/activeCredentials` - Returns only active credentials (filters out deleted)
+- `GET /boards/:id/items` - Returns ALL board items (including deleted)
+- `GET /boards/:id/activeItems` - Returns only active board items (filters out deleted)
+
+**Always prefix with `active` when filtering out `deletedAt` items** to make the API behavior explicit and prevent confusion about what data is returned.
+
+## Schema Validation Standards
+
+**Required vs Optional Fields:**
+- Always confirm field requirements with user before implementation
+- Document which fields are required vs optional in schema comments
+- Update both route schema and model schema simultaneously
+- Test both valid and invalid field combinations
+
+**VALIDATION_ERROR Handling:**
+- Fastify schema validation errors return "VALIDATION_ERROR"
+- Mongoose validation errors return "MONGOOSE_VALIDATION_ERROR"
+- Test both types of validation scenarios
+
+## Test Standards
+
+- always use proper ulid() when testing 'fake' IDs
+
+### Partial Update Testing Requirements
+
+**ALWAYS test partial updates for update endpoints to ensure omitted fields remain unchanged:**
+
+**✅ CORRECT approach - Capture before state and compare:**
+```javascript
+it('should perform partial updates - omitted fields should remain unchanged', async () => {
+  // Capture the current state before making changes
+  const getResponse = await app.inject({
+    method: 'GET',
+    url: `/v1/contacts/${testContactId}`
+  });
+  
+  expect(getResponse.statusCode).to.equal(200);
+  const beforeContact = JSON.parse(getResponse.body);
+  
+  // Perform partial update - only update specific fields
+  const partialUpdateData = {
+    nameFirst: 'Johnny',
+    title: 'Executive Director'
+    // Note: NOT including other fields
+  };
+
+  const response = await app.inject({
+    method: 'POST',
+    url: `/v1/contacts/update/${testContactId}?customerID=${testCustomerID}`,
+    payload: partialUpdateData
+  });
+
+  expect(response.statusCode).to.equal(200);
+  
+  const afterContact = JSON.parse(response.body);
+  
+  // Verify updated fields changed
+  expect(afterContact.nameFirst).to.equal('Johnny');
+  expect(afterContact.title).to.equal('Executive Director');
+  
+  // Verify omitted fields remained exactly the same as before
+  expect(afterContact.nameLast).to.equal(beforeContact.nameLast);
+  expect(afterContact.emailPrimary).to.equal(beforeContact.emailPrimary);
+  expect(afterContact.phones).to.deep.equal(beforeContact.phones);
+  expect(afterContact.addresses).to.deep.equal(beforeContact.addresses);
+  // ... verify all other fields remain unchanged
+});
+```
+
+**❌ WRONG approach - Assuming specific values:**
+```javascript
+// Don't assume what the current state should be
+expect(responseData.nameLast).to.equal('Doe');
+expect(responseData.phones[0].value).to.equal('+1-555-123-4567');
+```
+
+**Key principles:**
+1. **Capture the "before" state** - Get current document state before update
+2. **Compare against exact state** - Use `deep.equal` for objects/arrays
+3. **No assumptions about values** - Don't hardcode expected values
+4. **Test independence** - Works regardless of test execution order
+5. **Comprehensive verification** - Check all fields, not just a few
+
+**This ensures that `findOneAndUpdate()` only modifies specified fields and leaves omitted fields unchanged.**
+
+### Test Error Handler Setup
+
+**ALWAYS import and use the shared error handler for tests that create their own Fastify instances:**
+
+```javascript
+import { setupTestErrorHandler } from './utils/testErrorHandler.js';
+
+// In test setup
+app = Fastify();
+await app.decorate('cdsNegotiateAuth', async function(request, reply) { 
+  // auth setup
+  return true; 
+});
+
+// Add the same error handler as the main app
+await setupTestErrorHandler(app);
+
+await app.register(fastifyAuth);
+await app.register(routeModule, { prefix: '/v1' });
+await app.ready();
+```
+
+**Why this is required:**
+- Tests creating their own Fastify instances don't get the global error handler from `appListenPublic.js`
+- Without this, validation errors return 500 instead of 400
+- This ensures test behavior matches production behavior
+
+**Tests that need this setup:**
+- Any test using `app = Fastify()` and `app.inject()`
+- Tests that validate error responses (400, 500, etc.)
+- Tests that check validation error messages
+
+## Sub-document Testing Standards
+
+**Required Test Coverage:**
+- Create sub-document with all required fields
+- Create sub-document with optional fields
+- Reject creation with missing required fields
+- Update existing sub-document
+- Soft delete and restore sub-document
+- Verify soft deleted sub-documents don't appear in queries
+- Test boundary conditions (invalid indices, non-existent parent)
+- Test validation errors (both Fastify and Mongoose)
+
+**Test Data Setup:**
+- Create parent document in test setup
+- Use consistent test data patterns
+- Clean up test data in after hooks
+
+### Test Error Response Expectations
+
+**When testing validation errors, expect these patterns:**
+
+```javascript
+// Mongoose validation errors
+expect(response.statusCode).to.equal(400);
+const body = JSON.parse(response.body);
+expect(body.error).to.equal('VALIDATION_ERROR');
+expect(body.details.validationErrors).to.be.an('array');
+
+// Schema validation errors  
+expect(response.statusCode).to.equal(400);
+const body = JSON.parse(response.body);
+expect(body.error).to.equal('VALIDATION_ERROR');
+```
+
+### Test File Structure
+
+**Standard test setup pattern:**
+```javascript
+import { setupTestErrorHandler } from './utils/testErrorHandler.js';
+
+describe('Resource Tests', () => {
+  let app;
+  
+  before(async function() {
+    await waitForInitialization();
+    await mongooseConnection.connect();
+    
+    app = Fastify();
+    await app.decorate('cdsNegotiateAuth', async function(request, reply) { 
+      request.cdsAuthHandler = 'cdsBearerAuthStatic';
+      return true; 
+    });
+    
+    // Add the same error handler as the main app
+    await setupTestErrorHandler(app);
+    
+    await app.register(fastifyAuth);
+    await app.register(routeModule, { prefix: '/v1' });
+    await app.ready();
+  });
+  
+  after(async () => {
+    if (app) await app.close();
+  });
+});
+```
+
+### Custom Content Type Parsers in Tests
+
+**CRITICAL: When tests create their own Fastify instances, they MUST replicate any custom content type parsers from the main app (appListenPublic.js).**
+
+If the main app has a custom JSON parser that stores `rawBodyString` for signature verification, tests must include the same parser:
+
+```javascript
+// Add the custom JSON parser that stores rawBodyString (same as appListenPublic.js)
+fastify.removeContentTypeParser('application/json');
+fastify.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
+  req.rawBodyString = body;
+  if (!body || body.length === 0) {
+    done(null, {});
+    return;
+  }
+  try {
+    done(null, JSON.parse(body));
+  } catch (err) {
+    err.statusCode = 400;  // IMPORTANT: Set 400 for invalid JSON, not 500
+    done(err, undefined);
+  }
+});
+```
+
+**Why this matters:**
+- Routes that use `req.rawBodyString` will receive empty/undefined without the custom parser
+- Without `err.statusCode = 400`, JSON parse errors return 500 instead of 400
+- `fastify.inject()` behaves differently than real HTTP requests for content parsing 
+
+## Test Setup Standards
+
+**ALWAYS use before hooks for test data setup:**
+- Create test documents in `before` hooks, not in individual tests
+- This ensures test data is available for all tests in the describe block
+- Prevents race conditions where tests run before data is created
+
+**Example:**
+```javascript
+describe('API Route Tests', () => {
+  let createdId;
+  
+  before(async () => {
+    // Create test document here
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/new?customerID=test-customer',
+      payload: { name: 'Test Form' }
+    });
+    createdId = JSON.parse(response.body)._id;
+  });
+  
+  it('should use createdId', async () => {
+    // createdId is guaranteed to be available
+  });
+});
+```
+
+**NEVER set up test data in individual tests** - this can cause race conditions and test failures.
+
+## Response Schema Compliance
+
+**NEVER hardcode response schemas in route definitions:**
+- Use centralized schema functions: `createSoftDeleteResponseSchema()`, `createHardDeleteResponseSchema()`
+- Import schema functions: `import { createSoftDeleteResponseSchema, createHardDeleteResponseSchema } from '../src/utils/mongooseToJsonSchema.js'`
+
+### Model-Driven Route Schemas
+- Derive Fastify response schemas from exported Mongoose schemas using `mongooseSubSchemaToJsonSchema` to avoid drift.
+- Export sub-schemas needed by routes (e.g., `formQuestionSchema`) from their model file and use them in routes.
+- For WorkflowForms questions: use the model-derived schema for create/update/get/setOrderID responses.
+
+### WorkflowForms Question Ordering
+- Questions have optional `orderID` generated via `Helpers.generateFractionalIndex`.
+- `setOrderID` accepts `beforeOrderID` and `afterOrderID`; either may be null/undefined.
+- Do not bump `question.versionID` when only `orderID` changes.
+- `GET /:formId/sections/:sectionId/questions` returns ALL questions; `GET /:formId/sections/:sectionId/activeQuestions` filters out soft-deleted.
+- Both endpoints sort by `orderID` ascending with nulls first, then by `_id` as a tiebreaker.
+
+**Example:**
+```javascript
+// ✅ CORRECT
+response: {
+  200: createSoftDeleteResponseSchema()
+}
+
+// ❌ WRONG
+response: {
+  200: {
+    type: 'object',
+    properties: {
+      acknowledged: { type: 'boolean' },
+      modifiedCount: { type: 'number' }
+    }
+  }
+}
+```
+
+**Response schemas should be defined in ONE place** and reused throughout the codebase.
+
+## Test Expectation Standards
+
+**When testing API responses, only expect what the centralized functions return:**
+- `createSoftDeleteResponse()` returns: `{ modifiedCount: 1, acknowledged: true }`
+- `createHardDeleteResponse()` returns: `{ deletedCount: 1, acknowledged: true }`
+
+**DO NOT expect additional fields** like `deletedAt` unless they are explicitly part of the centralized response.
+
+**Example:**
+```javascript
+// ✅ CORRECT
+expect(body.acknowledged).to.equal(true);
+expect(body.modifiedCount).to.equal(1);
+
+// ❌ WRONG - Don't expect fields not in centralized response
+expect(body.deletedAt).to.exist;
+```
+
+## Centralized Function Usage
+
+**ALWAYS use centralized functions for common operations:**
+- Response objects: `createSoftDeleteResponse()`, `createHardDeleteResponse()`
+- Response schemas: `createSoftDeleteResponseSchema()`, `createHardDeleteResponseSchema()`
+- Error handling: Let global error handler manage all errors
+
+**Benefits:**
+- Ensures consistency across the codebase
+- Reduces maintenance overhead
+- Prevents drift between different implementations
+- Makes changes easier to implement across all endpoints
+
+Sub-document Update Policy (Immutable by General Update)
+
+Context
+- Some models include arrays of sub-documents that have their own `_id` (ULID) and are referenced elsewhere.
+- Example in OrganizationUnit: `levels[]` and `eventTypes[]` include sub-docs with ULID `_id`.
+
+Hard Rule
+- Do NOT allow general update endpoints (e.g., `POST /:resource/update/:id`) to accept, overwrite, or remove any sub-document arrays whose items include an `_id`.
+- Sub-doc arrays with `_id` must ONLY be managed via dedicated, ID-addressable endpoints.
+
+Implementation Requirements (every route)
+1) Schema exclusion
+   - Exclude sub-doc arrays with `_id` from the general update body schema.
+   - Set `additionalProperties: false` on the update schema to prevent silent acceptance.
+
+2) Runtime guard
+   - If the request body contains any excluded sub-doc arrays, return 400 with a specific error code.
+   - Example error codes:
+     - `LEVELS_UPDATE_NOT_ALLOWED`
+     - `EVENTTYPES_UPDATE_NOT_ALLOWED`
+
+3) Dedicated endpoints
+   - Provide explicit routes that operate on sub-docs by ULID:
+     - List: `GET /:id/<subdoc>` and, where applicable, `GET /:id/active<Subdoc>`
+     - Create: `POST /:id/<subdoc>/new`
+     - Update: `POST /:id/<subdoc>/:<subdocID>/update`
+     - Soft delete: `POST /:id/<subdoc>/:<subdocID>/markDeleted`
+     - Restore: `POST /:id/<subdoc>/:<subdocID>/markUndeleted`
+   - Never support bulk replace for these arrays.
+
+4) Multi-tenant + auth
+   - All dedicated endpoints must enforce customerID from session/auth and deny cross-tenant access.
+
+5) Soft delete
+   - For sub-docs that can be deleted, use soft delete with `deletedAt`. Provide list/all and list/active variants.
+
+Testing Requirements
+- Add tests that:
+  - Reject any attempt to update excluded sub-doc arrays via the general update route (expect 400 with the specific error code).
+  - Exercise dedicated endpoints: create, update, list (all/active), soft delete, restore.
+  - Use fresh data per test and ULIDs for IDs.
+
+Examples Implemented (reference)
+- OrganizationUnit
+  - Excluded from general update: `levels`, `eventTypes`
+  - Error code: `SUBDOC_UPDATE_NOT_ALLOWED`
+  - Dedicated endpoints:
+    - Levels: `GET /:id/levels`, `POST /:id/levels/new`, `POST /:id/levels/:levelID/update`
+    - EventTypes: `GET /:id/eventTypes`, `GET /:id/activeEventTypes`, `POST /:id/eventTypes/new`, `POST /:id/eventTypes/:eventTypeID/update`, `POST /:id/eventTypes/:eventTypeID/markDeleted`, `POST /:id/eventTypes/:eventTypeID/markUndeleted`
+
+Rationale
+- Preserves stability of sub-doc ULIDs used as references elsewhere.
+- Prevents accidental loss or reordering of ID-bearing items via bulk updates.
+- Makes intent explicit and auditable via narrow endpoints.

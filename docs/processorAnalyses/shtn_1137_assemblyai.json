@@ -1,0 +1,481 @@
+{
+  "id": "a5b6ee69-1331-4293-9bfe-12bc6ad1b34d",
+  "language_model": "assemblyai_default",
+  "acoustic_model": "assemblyai_default",
+  "language_code": "en_us",
+  "speech_understanding": null,
+  "translated_texts": null,
+  "status": "completed",
+  "audio_url": "https://cdn.assemblyai.com/upload/354ef801-9ccb-4b82-b47d-c25cfe50fb56",
+  "text": "Spring Hill Board of Mayor and Aldermen will come to order. Let the record show it's July 21st at 6:00 p.m. Let the record show that...THIS WAS TRUNCATED FOR READABILITY ",
+  "words": [
+    {
+      "text": "Spring",
+      "start": 2160,
+      "end": 2560,
+      "confidence": 0.9047974,
+      "speaker": "A"
+    },
+    {
+      "text": "Hill",
+      "start": 2640,
+      "end": 2800,
+      "confidence": 0.71687126,
+      "speaker": "A"
+    },
+    {
+      "text": "Board",
+      "start": 2880,
+      "end": 3120,
+      "confidence": 0.75798106,
+      "speaker": "A"
+    },
+    {
+      "text": "of",
+      "start": 3120,
+      "end": 3280,
+      "confidence": 0.98123527,
+      "speaker": "A"
+    },
+    {
+      "text": "Mayor",
+      "start": 3280,
+      "end": 3600,
+      "confidence": 0.87067455,
+      "speaker": "A"
+    },
+    {
+      "text": "and",
+      "start": 3600,
+      "end": 3680,
+      "confidence": 0.96797335,
+      "speaker": "A"
+    },
+    {
+      "text": "Aldermen",
+      "start": 3680,
+      "end": 4080,
+      "confidence": 0.72091705,
+      "speaker": "A"
+    },
+    {
+      "text": "will",
+      "start": 4080,
+      "end": 4160,
+      "confidence": 0.95750135,
+      "speaker": "A"
+    },
+    {
+      "text": "come",
+      "start": 4240,
+      "end": 4400,
+      "confidence": 0.99270743,
+      "speaker": "A"
+    },
+    {
+      "text": "to",
+      "start": 4400,
+      "end": 4480,
+      "confidence": 0.9891972,
+      "speaker": "A"
+    },
+    {
+      "text": "order.",
+      "start": 4560,
+      "end": 4640,
+      "confidence": 0.70387983,
+      "speaker": "A"
+    },
+    {
+      "text": "Let",
+      "start": 4960,
+      "end": 5120,
+      "confidence": 0.98619473,
+      "speaker": "A"
+    }
+  ],
+  "utterances": [
+    {
+      "speaker": "A",
+      "text": "Spring Hill Board of Mayor and Aldermen will come to order. Let the record show it's July 21st at 6:00 p.m. Let the record show that all the members are present. We will begin tonight with Mr. Eric Drook from Christ Chapel Church.",
+      "confidence": 0.88903314,
+      "start": 2160,
+      "end": 17200,
+      "words": [
+        {
+          "text": "Spring",
+          "start": 2160,
+          "end": 2560,
+          "confidence": 0.9047974,
+          "speaker": "A"
+        },
+        {
+          "text": "Hill",
+          "start": 2640,
+          "end": 2800,
+          "confidence": 0.71687126,
+          "speaker": "A"
+        },
+        {
+          "text": "Board",
+          "start": 2880,
+          "end": 3120,
+          "confidence": 0.75798106,
+          "speaker": "A"
+        },
+        {
+          "text": "of",
+          "start": 3120,
+          "end": 3280,
+          "confidence": 0.98123527,
+          "speaker": "A"
+        },
+        {
+          "text": "Mayor",
+          "start": 3280,
+          "end": 3600,
+          "confidence": 0.87067455,
+          "speaker": "A"
+        },
+        {
+          "text": "and",
+          "start": 3600,
+          "end": 3680,
+          "confidence": 0.96797335,
+          "speaker": "A"
+        },
+        {
+          "text": "Aldermen",
+          "start": 3680,
+          "end": 4080,
+          "confidence": 0.72091705,
+          "speaker": "A"
+        },
+        {
+          "text": "will",
+          "start": 4080,
+          "end": 4160,
+          "confidence": 0.95750135,
+          "speaker": "A"
+        },
+        {
+          "text": "come",
+          "start": 4240,
+          "end": 4400,
+          "confidence": 0.99270743,
+          "speaker": "A"
+        },
+        {
+          "text": "to",
+          "start": 4400,
+          "end": 4480,
+          "confidence": 0.9891972,
+          "speaker": "A"
+        },
+        {
+          "text": "order.",
+          "start": 4560,
+          "end": 4640,
+          "confidence": 0.70387983,
+          "speaker": "A"
+        },
+        {
+          "text": "Let",
+          "start": 4960,
+          "end": 5120,
+          "confidence": 0.98619473,
+          "speaker": "A"
+        },
+        {
+          "text": "the",
+          "start": 5280,
+          "end": 5360,
+          "confidence": 0.9934145,
+          "speaker": "A"
+        },
+        {
+          "text": "record",
+          "start": 5840,
+          "end": 5920,
+          "confidence": 0.8995585,
+          "speaker": "A"
+        },
+        {
+          "text": "show",
+          "start": 6320,
+          "end": 6400,
+          "confidence": 0.994829,
+          "speaker": "A"
+        },
+        {
+          "text": "it's",
+          "start": 6560,
+          "end": 6800,
+          "confidence": 0.70765966,
+          "speaker": "A"
+        },
+        {
+          "text": "July",
+          "start": 6880,
+          "end": 7200,
+          "confidence": 0.995477,
+          "speaker": "A"
+        },
+        {
+          "text": "21st",
+          "start": 7360,
+          "end": 8320,
+          "confidence": 0.8931858,
+          "speaker": "A"
+        },
+        {
+          "text": "at",
+          "start": 8320,
+          "end": 8400,
+          "confidence": 0.9170306,
+          "speaker": "A"
+        },
+        {
+          "text": "6:00",
+          "start": 8720,
+          "end": 9040,
+          "confidence": 0.40180355,
+          "speaker": "A"
+        },
+        {
+          "text": "p.m.",
+          "start": 9360,
+          "end": 9760,
+          "confidence": 0.48674336,
+          "speaker": "A"
+        },
+        {
+          "text": "Let",
+          "start": 10160,
+          "end": 10400,
+          "confidence": 0.9595192,
+          "speaker": "A"
+        },
+        {
+          "text": "the",
+          "start": 10480,
+          "end": 10560,
+          "confidence": 0.99340534,
+          "speaker": "A"
+        },
+        {
+          "text": "record",
+          "start": 10640,
+          "end": 10720,
+          "confidence": 0.9842978,
+          "speaker": "A"
+        },
+        {
+          "text": "show",
+          "start": 11040,
+          "end": 11120,
+          "confidence": 0.99675566,
+          "speaker": "A"
+        },
+        {
+          "text": "that",
+          "start": 11360,
+          "end": 11440,
+          "confidence": 0.98331094,
+          "speaker": "A"
+        },
+        {
+          "text": "all",
+          "start": 11520,
+          "end": 11600,
+          "confidence": 0.9947783,
+          "speaker": "A"
+        },
+        {
+          "text": "the",
+          "start": 11760,
+          "end": 11840,
+          "confidence": 0.9456299,
+          "speaker": "A"
+        },
+        {
+          "text": "members",
+          "start": 12000,
+          "end": 12320,
+          "confidence": 0.990498,
+          "speaker": "A"
+        },
+        {
+          "text": "are",
+          "start": 12480,
+          "end": 12560,
+          "confidence": 0.99720746,
+          "speaker": "A"
+        },
+        {
+          "text": "present.",
+          "start": 12800,
+          "end": 12880,
+          "confidence": 0.94819653,
+          "speaker": "A"
+        },
+        {
+          "text": "We",
+          "start": 13360,
+          "end": 13440,
+          "confidence": 0.9936935,
+          "speaker": "A"
+        },
+        {
+          "text": "will",
+          "start": 13440,
+          "end": 13520,
+          "confidence": 0.99149346,
+          "speaker": "A"
+        },
+        {
+          "text": "begin",
+          "start": 13600,
+          "end": 13920,
+          "confidence": 0.98983103,
+          "speaker": "A"
+        },
+        {
+          "text": "tonight",
+          "start": 14000,
+          "end": 14320,
+          "confidence": 0.98394334,
+          "speaker": "A"
+        },
+        {
+          "text": "with",
+          "start": 14320,
+          "end": 14400,
+          "confidence": 0.99263775,
+          "speaker": "A"
+        },
+        {
+          "text": "Mr.",
+          "start": 14560,
+          "end": 14800,
+          "confidence": 0.9624722,
+          "speaker": "A"
+        },
+        {
+          "text": "Eric",
+          "start": 14960,
+          "end": 15200,
+          "confidence": 0.7795671,
+          "speaker": "A"
+        },
+        {
+          "text": "Drook",
+          "start": 15280,
+          "end": 15760,
+          "confidence": 0.26774374,
+          "speaker": "A"
+        },
+        {
+          "text": "from",
+          "start": 15920,
+          "end": 16000,
+          "confidence": 0.94481564,
+          "speaker": "A"
+        },
+        {
+          "text": "Christ",
+          "start": 16000,
+          "end": 16400,
+          "confidence": 0.9884007,
+          "speaker": "A"
+        },
+        {
+          "text": "Chapel",
+          "start": 16480,
+          "end": 16800,
+          "confidence": 0.746244,
+          "speaker": "A"
+        },
+        {
+          "text": "Church.",
+          "start": 16880,
+          "end": 17200,
+          "confidence": 0.9543498,
+          "speaker": "A"
+        }
+      ]
+    }
+  ],
+  "confidence": 0.9082543,
+  "audio_duration": 9757,
+  "punctuate": true,
+  "format_text": true,
+  "dual_channel": false,
+  "webhook_url": null,
+  "webhook_status_code": null,
+  "webhook_auth": false,
+  "webhook_auth_header_name": null,
+  "speed_boost": false,
+  "auto_highlights_result": null,
+  "auto_highlights": false,
+  "audio_start_from": null,
+  "audio_end_at": null,
+  "word_boost": [],
+  "boost_param": null,
+  "prompt": null,
+  "keyterms_prompt": [],
+  "filter_profanity": false,
+  "redact_pii": false,
+  "redact_pii_audio": false,
+  "redact_pii_audio_quality": null,
+  "redact_pii_audio_options": null,
+  "redact_pii_policies": null,
+  "redact_pii_sub": null,
+  "speaker_labels": true,
+  "speaker_options": {
+    "min_speakers_expected": 1,
+    "max_speakers_expected": 16
+  },
+  "content_safety": false,
+  "iab_categories": false,
+  "content_safety_labels": {
+    "status": "unavailable",
+    "results": [],
+    "summary": {}
+  },
+  "iab_categories_result": {
+    "status": "unavailable",
+    "results": [],
+    "summary": {}
+  },
+  "language_detection": false,
+  "language_detection_options": null,
+  "language_detection_results": null,
+  "language_confidence_threshold": null,
+  "language_confidence": null,
+  "custom_spelling": null,
+  "throttled": false,
+  "auto_chapters": false,
+  "summarization": false,
+  "summary_type": null,
+  "summary_model": null,
+  "custom_topics": false,
+  "topics": [],
+  "speech_threshold": null,
+  "speech_model": "slam-1",
+  "speech_models": null,
+  "speech_model_used": null,
+  "chapters": null,
+  "disfluencies": false,
+  "entity_detection": false,
+  "sentiment_analysis": false,
+  "sentiment_analysis_results": null,
+  "entities": null,
+  "speakers_expected": null,
+  "summary": null,
+  "custom_topics_results": null,
+  "is_deleted": null,
+  "multichannel": null,
+  "project_id": 382650,
+  "token_id": 382650
+}
