@@ -97,7 +97,7 @@ export function reassembleChunkedProviderResponses(params) {
   return {
     transcriptInfo: {
       providerName: normalizedProvider,
-      providerJobID: `CHUNKED:${normalizedProvider}:${providerJobIDs.length}:${providerJobIDs[0]}`,
+      providerJobID: providerJobIDs[0],
       providerMeta: {
         isChunkedReassembly: true,
         providerJobIDs,

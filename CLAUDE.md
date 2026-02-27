@@ -68,7 +68,7 @@ These supplement `AGENTS.md` (root and `backend/`) which also applies.
 
 **ES Modules**: `backend/` uses `"type": "module"`. All `.js` files use `import`/`export`. The test setup file is `.cjs` (required by mocha's `--require`).
 
-**Config loading**: Config is read from `{CDS_PROJECT_NAME}.{CDS_RELEASEMODE}.appConfig.json`. The default is `cds-automated-minutes.development.appConfig.json`. Override with `CDS_CONFIG_PATH`. Config sections stay one level deep (e.g., `config.transcription.assemblyai.apiKey`). Missing required config throws at startup — no partial configs.
+**Config loading**: Config is read from `{CDS_PROJECT_NAME}.{CDS_RELEASEMODE}.appConfig.json`. The default is `cds-extraction-engine.development.appConfig.json`. Override with `CDS_CONFIG_PATH`. Config sections stay one level deep (e.g., `config.transcription.assemblyai.apiKey`). Missing required config throws at startup — no partial configs.
 
 **Provider names**: Always uppercase: `ASSEMBLYAI`, `DEEPGRAM`, `REVAI`, `SRT`, `VTT`. `textOriginalSource` values are prefixed: `AUTOGEN:ASSEMBLYAI`, `AUTOGEN:DEEPGRAM`, etc.
 

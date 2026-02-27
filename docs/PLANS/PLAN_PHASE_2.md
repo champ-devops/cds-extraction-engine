@@ -8,6 +8,8 @@ Phase 2 focuses on automatically aligning agenda items to transcript timestamps 
 
 **Dependencies**: Phase 1 (Transcript Ingestion) complete, with transcript `modifiedAt` and editable text fields populated
 
+**Focused implementation plan**: See `PLAN_AGENDA_TIMESTAMP_AUTOMATION.md` for the concrete job contract, provider orchestration, confidence model, and historical human-data strategy.
+
 ---
 
 ## Goals

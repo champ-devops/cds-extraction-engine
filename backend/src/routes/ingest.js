@@ -52,6 +52,8 @@ The provider format will be auto-detected, or can be specified explicitly.
         required: ['content'],
         properties: {
           mediaID: { type: 'string', description: 'Media ID (ULID)' },
+          cdsJobID: { type: 'string', description: 'Producer job ID to persist on created extraction/transcript.' },
+          cdsWorkerID: { type: 'string', description: 'Producer worker ID to persist in providerMeta.' },
           externalMediaID: {
             type: 'string',
             description: 'External media ID (CDSV1CustomerMediaID:<id> preferred; also accepts CDSV1MediaID:<id> or CDSV1Path:<path>).'
@@ -82,13 +84,15 @@ The provider format will be auto-detected, or can be specified explicitly.
     }
   }, async (request, reply) => {
     const { customerID } = request.query;
-    const { mediaID, externalMediaID, content, provider } = request.body;
+    const { mediaID, externalMediaID, content, provider, cdsJobID, cdsWorkerID } = request.body;
 
     const result = await ingestProviderJSON(content, {
       customerID,
       mediaID,
       externalMediaID,
-      provider
+      provider,
+      ...(cdsJobID ? { cdsJobID } : {}),
+      ...(cdsWorkerID ? { cdsWorkerID } : {})
     });
 
     if (result.success) {
@@ -135,6 +139,8 @@ like "[Speaker Name]:", ">>Speaker:", etc.
         required: ['content'],
         properties: {
           mediaID: { type: 'string', description: 'Media ID (ULID)' },
+          cdsJobID: { type: 'string', description: 'Producer job ID to persist on created extraction/transcript.' },
+          cdsWorkerID: { type: 'string', description: 'Producer worker ID to persist in providerMeta.' },
           externalMediaID: {
             type: 'string',
             description: 'External media ID (CDSV1CustomerMediaID:<id> preferred; also accepts CDSV1MediaID:<id> or CDSV1Path:<path>).'
@@ -165,14 +171,16 @@ like "[Speaker Name]:", ">>Speaker:", etc.
     }
   }, async (request, reply) => {
     const { customerID } = request.query;
-    const { mediaID, externalMediaID, content, captionerName, extractSpeakers } = request.body;
+    const { mediaID, externalMediaID, content, captionerName, extractSpeakers, cdsJobID, cdsWorkerID } = request.body;
 
     const result = await ingestCaptionFile(content, {
       customerID,
       mediaID,
       externalMediaID,
       captionerName,
-      extractSpeakers
+      extractSpeakers,
+      ...(cdsJobID ? { cdsJobID } : {}),
+      ...(cdsWorkerID ? { cdsWorkerID } : {})
     });
 
     if (result.success) {
@@ -217,6 +225,8 @@ Returns transcript and job identifiers for tracking.
             type: 'number',
             description: 'CustomerAPI v1 event ID used to resolve primary media and augment keyTerms from event content.'
           },
+          cdsJobID: { type: 'string', description: 'Producer job ID to persist on created extraction/transcript.' },
+          cdsWorkerID: { type: 'string', description: 'Producer worker ID to persist in providerMeta.' },
           mediaID: { type: 'string', description: 'Media ID (ULID)' },
           externalMediaID: {
             type: 'string',
@@ -294,7 +304,7 @@ Returns transcript and job identifiers for tracking.
     }
   }, async (request, reply) => {
     const { customerID } = request.query;
-    const { cdsV1EventID, mediaID, externalMediaID, provider } = request.body;
+    const { cdsV1EventID, mediaID, externalMediaID, provider, cdsJobID, cdsWorkerID } = request.body;
     const { mediaPath } = request.body;
     const options = (request.body?.options && typeof request.body.options === 'object')
       ? { ...request.body.options }
@@ -319,7 +329,9 @@ Returns transcript and job identifiers for tracking.
       mediaPath,
       cdsV1EventID,
       provider: provider || 'ASSEMBLYAI',
-      options
+      options,
+      ...(cdsJobID ? { cdsJobID } : {}),
+      ...(cdsWorkerID ? { cdsWorkerID } : {})
     });
 
     if (!result.success) {
@@ -551,6 +563,8 @@ This endpoint is intended for poll-completion handlers that receive completed pr
         required: ['transcriptID', 'provider'],
         properties: {
           transcriptID: { type: 'string', description: 'Transcript ID to finalize' },
+          cdsJobID: { type: 'string', description: 'Producer job ID to persist on finalized transcript.' },
+          cdsWorkerID: { type: 'string', description: 'Producer worker ID to persist in providerMeta.' },
           provider: {
             type: 'string',
             enum: ['ASSEMBLYAI', 'DEEPGRAM', 'REVAI'],
@@ -605,7 +619,7 @@ This endpoint is intended for poll-completion handlers that receive completed pr
     }
   }, async (request, reply) => {
     const { customerID } = request.query;
-    const { transcriptID, provider, providerResponse, chunkResponses, chunkMap } = request.body;
+    const { transcriptID, provider, providerResponse, chunkResponses, chunkMap, cdsJobID, cdsWorkerID } = request.body;
 
     const isChunkedFinalize = Array.isArray(chunkResponses) && chunkResponses.length > 0;
     if (isChunkedFinalize && (!Array.isArray(chunkMap) || chunkMap.length === 0)) {
@@ -628,7 +642,11 @@ This endpoint is intended for poll-completion handlers that receive completed pr
       providerResponse,
       chunkResponses,
       chunkMap,
-      coreApiClient: getCoreApiClientHandler()
+      coreApiClient: getCoreApiClientHandler(),
+      executionContext: {
+        ...(cdsJobID ? { cdsJobID } : {}),
+        ...(cdsWorkerID ? { cdsWorkerID } : {})
+      }
     });
 
     return reply.status(200).send(result);

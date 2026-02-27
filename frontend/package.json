@@ -1,5 +1,5 @@
 {
-  "name": "cds-automated-minutes-frontend",
+  "name": "cds-extraction-engine-frontend",
   "private": true,
   "version": "0.1.0",
   "description": "Frontend application placeholder for CDS automated minutes"

@@ -34,10 +34,75 @@ export function parseSilenceDetectOutput(ffmpegOutput) {
 }
 
 /**
+ * Parse ffmpeg volumedetect output into key/value metadata.
+ * @param {string} ffmpegOutput
+ * @returns {Record<string, string|number>}
+ */
+export function parseVolumedetectOutput(ffmpegOutput) {
+  const result = {};
+  const lines = String(ffmpegOutput || '').split('\n');
+
+  for (const line of lines) {
+    const match = line.match(/\[Parsed_volumedetect_[^\]]+\]\s*([a-z0-9_]+):\s*(.+)\s*$/i);
+    if (!match) {
+      continue;
+    }
+    const key = String(match[1] || '').trim();
+    const rawValue = String(match[2] || '').trim();
+    if (!key || !rawValue) {
+      continue;
+    }
+
+    if (key === 'n_samples' || key.startsWith('histogram_')) {
+      const parsedNumber = Number(rawValue);
+      result[key] = Number.isFinite(parsedNumber) ? parsedNumber : rawValue;
+      continue;
+    }
+
+    result[key] = rawValue;
+  }
+
+  return result;
+}
+
+/**
+ * Summarize silence interval durations for metadata.
+ * @param {Array<{durationMS:number}>} silenceIntervals
+ * @returns {{totalDetectedSilenceCount:number,minDetectedSilenceLengthMS:number,maxDetectedSilenceLengthMS:number}}
+ */
+export function summarizeSilenceIntervals(silenceIntervals = []) {
+  if (!Array.isArray(silenceIntervals) || silenceIntervals.length === 0) {
+    return {
+      totalDetectedSilenceCount: 0,
+      minDetectedSilenceLengthMS: 0,
+      maxDetectedSilenceLengthMS: 0
+    };
+  }
+
+  const detectedDurationsMS = silenceIntervals
+    .map((interval) => Number(interval?.durationMS))
+    .filter((durationMS) => Number.isFinite(durationMS) && durationMS >= 0);
+
+  if (detectedDurationsMS.length === 0) {
+    return {
+      totalDetectedSilenceCount: 0,
+      minDetectedSilenceLengthMS: 0,
+      maxDetectedSilenceLengthMS: 0
+    };
+  }
+
+  return {
+    totalDetectedSilenceCount: detectedDurationsMS.length,
+    minDetectedSilenceLengthMS: Math.min(...detectedDurationsMS),
+    maxDetectedSilenceLengthMS: Math.max(...detectedDurationsMS)
+  };
+}
+
+/**
  * Analyze silence in an audio file using ffmpeg silencedetect.
  * @param {string} audioPath
  * @param {{noiseDB?:number,minSilenceSecs?:number}} [options]
- * @returns {Promise<{silenceIntervals:Array<{startMS:number,endMS:number,durationMS:number}>, totalSilenceMS:number, analyzedDurationMS:number, isSilenceAnalyzed:boolean, silenceAnalysisMeta:{noiseDB:number,minSilenceSecs:number,tool:string,analyzedAt:string}}>}
+ * @returns {Promise<{silenceIntervals:Array<{startMS:number,endMS:number,durationMS:number}>, totalSilenceMS:number, mediaDurationMS:number, analyzedAt:string, isSilenceAnalyzed:boolean, volumedetectMeta:Record<string,string|number>, silenceAnalysisMeta:{noiseDB:number,minSilenceSecs:number,totalDetectedSilenceCount:number,minDetectedSilenceLengthMS:number,maxDetectedSilenceLengthMS:number,tool:string}}>}
  */
 export async function analyzeSilence(audioPath, options = {}) {
   const noiseDB = Number(options.noiseDB ?? -35);
@@ -45,25 +110,36 @@ export async function analyzeSilence(audioPath, options = {}) {
 
   const { stderr } = await execFileAsync('ffmpeg', [
     '-hide_banner',
+    '-vn',
     '-i', audioPath,
-    '-af', `silencedetect=noise=${noiseDB}dB:d=${minSilenceSecs}`,
+    '-af', `silencedetect=noise=${noiseDB}dB:d=${minSilenceSecs},volumedetect`,
     '-f', 'null',
     '-'
   ]);
 
   const { silenceIntervals, totalSilenceMS } = parseSilenceDetectOutput(stderr || '');
-  const analyzedDurationMS = extractAudioDurationMS(stderr || '');
+  const mediaDurationMS = extractAudioDurationMS(stderr || '');
+  const detectedSilenceStats = summarizeSilenceIntervals(silenceIntervals);
+  const volumedetectMeta = {
+    ...parseVolumedetectOutput(stderr || ''),
+    tool: 'ffmpeg:volumedetect'
+  };
+  const analyzedAt = new Date().toISOString();
 
   return {
     silenceIntervals,
     totalSilenceMS,
-    analyzedDurationMS,
+    mediaDurationMS,
+    analyzedAt,
     isSilenceAnalyzed: true,
+    volumedetectMeta,
     silenceAnalysisMeta: {
       noiseDB,
       minSilenceSecs,
-      tool: 'ffmpeg:silencedetect',
-      analyzedAt: new Date().toISOString()
+      totalDetectedSilenceCount: detectedSilenceStats.totalDetectedSilenceCount,
+      minDetectedSilenceLengthMS: detectedSilenceStats.minDetectedSilenceLengthMS,
+      maxDetectedSilenceLengthMS: detectedSilenceStats.maxDetectedSilenceLengthMS,
+      tool: 'ffmpeg:silencedetect'
     }
   };
 }
@@ -80,4 +156,4 @@ function extractAudioDurationMS(ffmpegOutput) {
   return Math.round((hours * 3600 + minutes * 60 + seconds) * 1000);
 }
 
-export default { analyzeSilence, parseSilenceDetectOutput };
+export default { analyzeSilence, parseSilenceDetectOutput, parseVolumedetectOutput, summarizeSilenceIntervals };

@@ -23,6 +23,7 @@
 ## Engineering Defaults
 - Prefer centralized helpers over ad-hoc duplicated objects.
 - Keep response/data contracts consistent with existing shared schema/util functions.
+- Before adding new fields/helpers, check for existing equivalents and reuse them; do not duplicate semantics under a new name.
 - Keep naming consistent across code and config.
 - Boolean fields and flags must start with `is` (example: `isAuthoritative`).
 - Abbreviation casing rule:

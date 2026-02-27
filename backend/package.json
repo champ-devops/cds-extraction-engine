@@ -1,5 +1,5 @@
 {
-  "name": "cds-automated-minutes-backend",
+  "name": "cds-extraction-engine-backend",
   "version": "1.0.0",
   "description": "AI-powered meeting minutes generation from transcripts and agendas",
   "type": "module",

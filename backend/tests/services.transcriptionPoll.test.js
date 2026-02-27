@@ -182,6 +182,7 @@ describe('Transcription poll service', () => {
     });
 
     expect(processingResult.status).to.equal('processing');
+    expect(updates[0][2].cdsJobID).to.equal('JOB-NEW');
     expect(updates[0][2].providerMeta).to.include({
       cdsJobID: 'JOB-NEW',
       cdsWorkerID: 'WORKER-NEW'

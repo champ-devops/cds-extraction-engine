@@ -132,6 +132,7 @@ describe('Transcript ingestion provider-scoped helpers', () => {
     expect(transcript._id).to.equal('TRX2');
     expect(capturedPayload.direction).to.equal('STT');
     expect(capturedPayload.variant).to.equal('EN');
+    expect(capturedPayload.cdsJobID).to.equal('J1');
   });
 
   it('reuses duplicate transcripts using STT identity filters', async () => {
@@ -446,12 +447,14 @@ describe('Transcript ingestion provider-scoped helpers', () => {
       externalMediaID: 'CDSV1CustomerMediaID:42',
       compatibilityExternalMediaIDs: [],
       cdsV1EventID: 1175,
+      processingDurationMS: 4321,
       eventAndItemsRows: [
         { sourceType: 'EVENT', sourceID: '1175', title: 'Meeting', description: 'Desc', textOriginal: 'Meeting. Desc' },
         { sourceType: 'AGENDA_ITEM', sourceID: '2001', title: 'Item One', description: 'Detail', textOriginal: 'Item One. Detail' }
       ],
       keywordListJSON: ['BOMA', 'Resolution 25-267'],
-      eventWarnings: []
+      eventWarnings: [],
+      cdsJobID: 'JOB-EVT-1'
     });
 
     expect(deletedExtractionIDs).to.deep.equal(['EX-OLD']);
@@ -460,13 +463,109 @@ describe('Transcript ingestion provider-scoped helpers', () => {
     expect(listQuery.v1TargetID).to.equal(1175);
     expect(createdExtractionPayload.extractionKind).to.equal('KEYWORD_EXTRACTION');
     expect(createdExtractionPayload.offsetUnit).to.equal('NONE');
+    expect(createdExtractionPayload.providerName).to.equal('HEURISTIC');
+    expect(createdExtractionPayload.providerMeta).to.deep.equal({
+      llmInputWordCount: 0
+    });
+    expect(createdExtractionPayload.cdsJobID).to.equal('JOB-EVT-1');
     expect(createdExtractionPayload.v1TargetClassName).to.equal('EVENT_AND_ITEMS');
     expect(createdExtractionPayload.v1TargetID).to.equal(1175);
+    expect(createdExtractionPayload.processingDurationMS).to.equal(4321);
     expect(createdExtractionPayload.extractionData).to.deep.equal({
-      keywordListJSON: ['BOMA', 'Resolution 25-267']
+      keywordListJSON: ['BOMA', 'Resolution 25-267'],
+      aiHintMeta: {
+        isAIHintEnabled: false,
+        isAIHintApplied: false,
+        isAIUsed: false,
+        aiProvider: '',
+        aiFailureReason: '',
+        aiFailureCode: '',
+        eventKeyTermCount: 0,
+        callerKeyTermCount: 0,
+        finalKeyTermCount: 0
+      }
     });
     expect(result.extractionID).to.equal('EX-NEW');
     expect(result.itemCount).to.equal(0);
+  });
+
+  it('stores AI hint metadata in KEYWORD_EXTRACTION extractionData', async () => {
+    let createdExtractionPayload = null;
+    await __testables.createOrReplaceEventAndItemsExtraction({
+      client: {
+        listExtractions: async () => [],
+        hardDeleteExtractionAndItems: async () => {},
+        createExtraction: async (_customerID, payload) => {
+          createdExtractionPayload = payload;
+          return { _id: 'EX-AI' };
+        },
+        createExtractionItems: async () => []
+      },
+      customerID: 'C1',
+      cdsV1EventID: 1175,
+      keywordListJSON: ['Resolution 25-267'],
+      aiHintDebug: {
+        isEnabled: true,
+        isApplied: true,
+        isLLMUsed: true,
+        llmProvider: 'openai',
+        llmInputTexts: [
+          'One two three',
+          'Alpha beta'
+        ],
+        llmFailureReason: '',
+        llmFailureCode: '',
+        eventKeyTermCount: 17,
+        callerKeyTermCount: 12,
+        finalKeyTermCount: 29
+      }
+    });
+
+    expect(createdExtractionPayload.providerName).to.equal('OPENAI');
+    expect(createdExtractionPayload.providerMeta).to.deep.equal({
+      llmInputWordCount: 5
+    });
+    expect(createdExtractionPayload.extractionData.aiHintMeta).to.deep.equal({
+      isAIHintEnabled: true,
+      isAIHintApplied: true,
+      isAIUsed: true,
+      aiProvider: 'openai',
+      aiFailureReason: '',
+      aiFailureCode: '',
+      eventKeyTermCount: 17,
+      callerKeyTermCount: 12,
+      finalKeyTermCount: 29
+    });
+  });
+
+  it('uses HEURISTIC providerName when AI hint extraction falls back after LLM failure', async () => {
+    let createdExtractionPayload = null;
+    await __testables.createOrReplaceEventAndItemsExtraction({
+      client: {
+        listExtractions: async () => [],
+        hardDeleteExtractionAndItems: async () => {},
+        createExtraction: async (_customerID, payload) => {
+          createdExtractionPayload = payload;
+          return { _id: 'EX-HEURISTIC' };
+        },
+        createExtractionItems: async () => []
+      },
+      customerID: 'C1',
+      cdsV1EventID: 1175,
+      keywordListJSON: ['Resolution 25-267'],
+      aiHintDebug: {
+        isEnabled: true,
+        isApplied: true,
+        isLLMUsed: false,
+        llmProvider: 'openai',
+        llmInputTexts: ['Fallback terms still start from this text']
+      }
+    });
+
+    expect(createdExtractionPayload.providerName).to.equal('HEURISTIC');
+    expect(createdExtractionPayload.providerMeta).to.deep.equal({
+      llmInputWordCount: 7
+    });
   });
 });
 
@@ -788,7 +887,15 @@ describe('Silence extraction reuse/recreate', () => {
         _id: 'EX1',
         extractionKind: 'SILENCE_DETECTION',
         extractionData: {
-          analyzedDurationMS: 9000,
+          mediaDurationMS: 9000,
+          analyzedAt: '2026-02-24T00:00:00.000Z',
+          volumedetectMeta: {
+            n_samples: 834295808,
+            mean_volume: '-40.3 dB',
+            max_volume: '-3.7 dB',
+            histogram_21db: 375479,
+            tool: 'ffmpeg:volumedetect'
+          },
           silenceIntervals: [
             { startMS: 1000, endMS: 3000, durationMS: 2000 },
             { startMS: 5000, endMS: 7000, durationMS: 2000 }
@@ -796,8 +903,7 @@ describe('Silence extraction reuse/recreate', () => {
           silenceAnalysisMeta: {
             noiseDB: -35,
             minSilenceSecs: 1,
-            tool: 'ffmpeg:silencedetect',
-            analyzedAt: '2026-02-24T00:00:00.000Z'
+            tool: 'ffmpeg:silencedetect'
           }
         }
       }]),
@@ -833,6 +939,18 @@ describe('Silence extraction reuse/recreate', () => {
     expect(result.debug.source).to.equal('existing');
     expect(result.debug.isReusedExisting).to.equal(true);
     expect(result.debug.extractionID).to.equal('EX1');
+    expect(result.silenceAnalysis.mediaDurationMS).to.equal(9000);
+    expect(result.silenceAnalysis.analyzedAt).to.equal('2026-02-24T00:00:00.000Z');
+    expect(result.silenceAnalysis.silenceAnalysisMeta.totalDetectedSilenceCount).to.equal(2);
+    expect(result.silenceAnalysis.silenceAnalysisMeta.minDetectedSilenceLengthMS).to.equal(2000);
+    expect(result.silenceAnalysis.silenceAnalysisMeta.maxDetectedSilenceLengthMS).to.equal(2000);
+    expect(result.silenceAnalysis.volumedetectMeta).to.deep.equal({
+      n_samples: 834295808,
+      mean_volume: '-40.3 dB',
+      max_volume: '-3.7 dB',
+      histogram_21db: 375479,
+      tool: 'ffmpeg:volumedetect'
+    });
     expect(result.savedSilenceIntervals).to.deep.equal([
       { startMS: 1000, endMS: 3000, durationMS: 2000 },
       { startMS: 5000, endMS: 7000, durationMS: 2000 }
@@ -866,16 +984,23 @@ describe('Silence extraction reuse/recreate', () => {
       silenceMinSecs: 2,
       silenceMinSecsToSave: 2,
       isSilenceForceRecreate: false,
+      cdsJobID: 'JOB-SILENCE-1',
       analyzeSilenceHandler: async () => ({
         silenceIntervals: [{ startMS: 2500, endMS: 6000, durationMS: 3500 }],
         totalSilenceMS: 3500,
-        analyzedDurationMS: 20000,
+        mediaDurationMS: 20000,
         isSilenceAnalyzed: true,
+        volumedetectMeta: {
+          n_samples: 834295808,
+          mean_volume: '-40.3 dB',
+          max_volume: '-3.7 dB',
+          histogram_3db: 80,
+          histogram_4db: 61
+        },
         silenceAnalysisMeta: {
           noiseDB: -35,
           minSilenceSecs: 1,
-          tool: 'ffmpeg:silencedetect',
-          analyzedAt: '2026-02-24T00:00:00.000Z'
+          tool: 'ffmpeg:silencedetect'
         }
       })
     });
@@ -883,7 +1008,21 @@ describe('Silence extraction reuse/recreate', () => {
     expect(result.debug.source).to.equal('generated');
     expect(result.debug.extractionID).to.equal('EX2');
     expect(createExtractionPayload.extractionKind).to.equal('SILENCE_DETECTION');
+    expect(createExtractionPayload.cdsJobID).to.equal('JOB-SILENCE-1');
     expect(createExtractionPayload.offsetUnit).to.equal('MS');
+    expect(createExtractionPayload.processingDurationMS).to.be.a('number');
+    expect(createExtractionPayload.processingDurationMS).to.be.at.least(0);
+    expect(createExtractionPayload.extractionData.mediaDurationMS).to.equal(20000);
+    expect(createExtractionPayload.extractionData.analyzedAt).to.be.a('string');
+    expect(createExtractionPayload.extractionData.silenceAnalysisMeta.totalDetectedSilenceCount).to.equal(1);
+    expect(createExtractionPayload.extractionData.silenceAnalysisMeta.minDetectedSilenceLengthMS).to.equal(3500);
+    expect(createExtractionPayload.extractionData.silenceAnalysisMeta.maxDetectedSilenceLengthMS).to.equal(3500);
+    expect(createExtractionPayload.extractionData.volumedetectMeta.n_samples).to.equal(834295808);
+    expect(createExtractionPayload.extractionData.volumedetectMeta.mean_volume).to.equal('-40.3 dB');
+    expect(createExtractionPayload.extractionData.volumedetectMeta.max_volume).to.equal('-3.7 dB');
+    expect(createExtractionPayload.extractionData.volumedetectMeta.histogram_3db).to.equal(80);
+    expect(createExtractionPayload.extractionData.volumedetectMeta.histogram_4db).to.equal(61);
+    expect(createExtractionPayload.extractionData.volumedetectMeta.tool).to.equal('ffmpeg:volumedetect');
     expect(createExtractionPayload.extractionData.silenceIntervals).to.deep.equal([
       { startMS: 2500, endMS: 6000, durationMS: 3500 }
     ]);
@@ -921,13 +1060,12 @@ describe('Silence extraction reuse/recreate', () => {
       analyzeSilenceHandler: async () => ({
         silenceIntervals: [],
         totalSilenceMS: 0,
-        analyzedDurationMS: 20000,
+        mediaDurationMS: 20000,
         isSilenceAnalyzed: true,
         silenceAnalysisMeta: {
           noiseDB: -35,
           minSilenceSecs: 1,
-          tool: 'ffmpeg:silencedetect',
-          analyzedAt: '2026-02-24T00:00:00.000Z'
+          tool: 'ffmpeg:silencedetect'
         }
       })
     });
@@ -966,12 +1104,20 @@ describe('Silence extraction reuse/recreate', () => {
       analyzeSilenceHandler: async () => ({
         silenceIntervals: [],
         totalSilenceMS: 0,
-        analyzedDurationMS: 1000,
+        mediaDurationMS: 1000,
         isSilenceAnalyzed: true,
-        silenceAnalysisMeta: { noiseDB: -35, minSilenceSecs: 1, tool: 'ffmpeg', analyzedAt: '2026-02-24T00:00:00.000Z' }
+        volumedetectMeta: {},
+        silenceAnalysisMeta: { noiseDB: -35, minSilenceSecs: 1, tool: 'ffmpeg' }
       })
     });
 
     expect(createExtractionPayload.extractionData.externalMediaPath).to.equal('CDSV1Path:m1.mp4');
+    expect(createExtractionPayload.extractionData.silenceAnalysisMeta.totalDetectedSilenceCount).to.equal(0);
+    expect(createExtractionPayload.extractionData.silenceAnalysisMeta.minDetectedSilenceLengthMS).to.equal(0);
+    expect(createExtractionPayload.extractionData.silenceAnalysisMeta.maxDetectedSilenceLengthMS).to.equal(0);
+    expect(createExtractionPayload.extractionData.mediaDurationMS).to.equal(1000);
+    expect(createExtractionPayload.processingDurationMS).to.be.a('number');
+    expect(createExtractionPayload.extractionData.volumedetectMeta.tool).to.equal('ffmpeg:volumedetect');
+    expect(createExtractionPayload.extractionData.analyzedAt).to.be.a('string');
   });
 });

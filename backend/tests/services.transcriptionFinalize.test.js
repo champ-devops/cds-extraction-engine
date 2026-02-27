@@ -212,5 +212,6 @@ describe('Transcription finalize service', () => {
       cdsWorkerID: 'WORKER-NEW',
       status: 'completed'
     });
+    expect(calls.updateTranscript[2].cdsJobID).to.equal('JOB-NEW');
   });
 });

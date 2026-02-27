@@ -44,6 +44,7 @@ describe('Chunk reassembly service', () => {
     });
 
     expect(result.transcriptInfo.providerName).to.equal('ASSEMBLYAI');
+    expect(result.transcriptInfo.providerJobID).to.equal('aai-c0');
     expect(result.transcriptInfo.providerMeta.isChunkedReassembly).to.equal(true);
     expect(result.transcriptInfo.providerMeta.providerJobIDs).to.deep.equal(['aai-c0', 'aai-c1']);
     expect(result.transcriptInfo.audioDurationMS).to.equal(7000);

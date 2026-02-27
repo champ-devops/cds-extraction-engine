@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { parseSilenceDetectOutput } from '../src/services/silenceDetection.js';
+import { parseSilenceDetectOutput, parseVolumedetectOutput } from '../src/services/silenceDetection.js';
 
 describe('Silence detection parser', () => {
   it('parses silence intervals from ffmpeg silencedetect output', () => {
@@ -28,5 +28,26 @@ Duration: 00:10:00.00, start: 0.000000, bitrate: 128 kb/s
     const result = parseSilenceDetectOutput(ffmpegOutput);
     expect(result.silenceIntervals).to.deep.equal([]);
     expect(result.totalSilenceMS).to.equal(0);
+  });
+
+  it('parses volumedetect output into metadata keys/values', () => {
+    const ffmpegOutput = `
+[Parsed_volumedetect_0 @ 0x560641287a80] n_samples: 834295808
+[Parsed_volumedetect_0 @ 0x560641287a80] mean_volume: -40.3 dB
+[Parsed_volumedetect_0 @ 0x560641287a80] max_volume: -3.7 dB
+[Parsed_volumedetect_0 @ 0x560641287a80] histogram_3db: 80
+[Parsed_volumedetect_0 @ 0x560641287a80] histogram_4db: 61
+[Parsed_volumedetect_0 @ 0x560641287a80] histogram_21db: 375479
+`;
+
+    const result = parseVolumedetectOutput(ffmpegOutput);
+    expect(result).to.deep.equal({
+      n_samples: 834295808,
+      mean_volume: '-40.3 dB',
+      max_volume: '-3.7 dB',
+      histogram_3db: 80,
+      histogram_4db: 61,
+      histogram_21db: 375479
+    });
   });
 });

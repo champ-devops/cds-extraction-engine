@@ -17,7 +17,7 @@ import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { analyzeSilence } from './silenceDetection.js';
+import { analyzeSilence, summarizeSilenceIntervals } from './silenceDetection.js';
 import { buildChunkMapFromSilence, planSegmentSubmission } from './timestampRemap.js';
 import { processTranscriptionPollJob } from './transcriptionPoll.js';
 import {
@@ -65,7 +65,7 @@ const EXTERNAL_MEDIA_ID_PREFIX_PATH = 'CDSV1Path:';
  * @returns {Promise<IngestionResult>} Ingestion result
  */
 export async function ingestProviderJSON(content, options) {
-  const { customerID, mediaID, externalMediaID, provider } = options;
+  const { customerID, mediaID, externalMediaID, provider, cdsJobID, cdsWorkerID } = options;
 
   // Validate required fields
   if (!customerID) {
@@ -94,7 +94,9 @@ export async function ingestProviderJSON(content, options) {
       mediaID,
       externalMediaID,
       transcriptInfo: parsed.transcriptInfo,
-      utterances: parsed.utterances
+      utterances: parsed.utterances,
+      cdsJobID,
+      cdsWorkerID
     });
 
     return result;
@@ -117,7 +119,7 @@ export async function ingestProviderJSON(content, options) {
  * @returns {Promise<IngestionResult>} Ingestion result
  */
 export async function ingestCaptionFile(content, options) {
-  const { customerID, mediaID, externalMediaID, captionerName, extractSpeakers } = options;
+  const { customerID, mediaID, externalMediaID, captionerName, extractSpeakers, cdsJobID, cdsWorkerID } = options;
 
   // Validate required fields
   if (!customerID) {
@@ -152,7 +154,9 @@ export async function ingestCaptionFile(content, options) {
       mediaID,
       externalMediaID,
       transcriptInfo: parsed.transcriptInfo,
-      utterances: parsed.utterances
+      utterances: parsed.utterances,
+      cdsJobID,
+      cdsWorkerID
     });
 
     return result;
@@ -172,9 +176,11 @@ export async function ingestCaptionFile(content, options) {
  * @returns {Promise<IngestionResult>} Result with transcript ID and utterance count
  */
 async function createTranscriptWithUtterances(customerID, data) {
+  const startedAtMS = Date.now();
   const client = data?.client || getCoreApiClient();
-  const { mediaID, externalMediaID, transcriptInfo, utterances } = data;
+  const { mediaID, externalMediaID, transcriptInfo, utterances, cdsJobID, cdsWorkerID } = data;
   const providerName = resolveProviderNameForCreate(transcriptInfo, utterances);
+  const providerMeta = buildProviderMetaWithExecutionContext(transcriptInfo.providerMeta || {}, { cdsJobID, cdsWorkerID });
 
   // Resolve mediaID if only externalMediaID provided
   let resolvedMediaID = mediaID;
@@ -192,12 +198,14 @@ async function createTranscriptWithUtterances(customerID, data) {
   // Create transcript
   const transcriptData = {
     ...STT_EN_TRANSCRIPT_IDENTITY,
+    processingDurationMS: Date.now() - startedAtMS,
     mediaID: resolvedMediaID,
     status: 'COMPLETE',
     externalMediaID: externalMediaID || undefined,
     providerName,
     providerJobID: transcriptInfo.providerJobID || undefined,
-    providerMeta: transcriptInfo.providerMeta || undefined,
+    providerMeta: Object.keys(providerMeta).length > 0 ? providerMeta : undefined,
+    cdsJobID: cdsJobID || undefined,
     textOriginal: transcriptInfo.textOriginal || transcriptInfo.fullText || '',
     textOriginalSource: utterances.length > 0 ? utterances[0].textOriginalSource : undefined
   };
@@ -511,6 +519,7 @@ export async function submitMediaForTranscription(options) {
       const existingCdsWorkerID = transcript?.providerMeta?.cdsWorkerID;
       if ((cdsJobID && existingCdsJobID !== cdsJobID) || (cdsWorkerID && existingCdsWorkerID !== cdsWorkerID)) {
         await client.updateTranscript(customerID, requestedTranscriptID, {
+          cdsJobID: cdsJobID || undefined,
           providerMeta: buildProviderMetaWithExecutionContext(transcript?.providerMeta, { cdsJobID, cdsWorkerID })
         }).catch(() => {});
       }
@@ -625,6 +634,7 @@ export async function submitMediaForTranscription(options) {
       compatibilityExternalMediaIDs: externalMediaContext.compatibilityExternalMediaIDs,
       externalMediaPath: effectiveExternalMediaPath,
       provider,
+      processingDurationMS: Date.now() - taskStartedAtMS,
       cdsJobID,
       cdsWorkerID
     });
@@ -653,6 +663,7 @@ export async function submitMediaForTranscription(options) {
         externalMediaID: effectiveExternalMediaID
       });
       await client.updateTranscript(customerID, transcriptID, {
+        cdsJobID: cdsJobID || undefined,
         providerMeta: buildProviderMetaWithExecutionContext(createdOrExistingTranscript?.providerMeta, {
           cdsJobID,
           cdsWorkerID,
@@ -760,8 +771,10 @@ export async function submitMediaForTranscription(options) {
         cdsV1EventID,
         eventAndItemsRows,
         keywordListJSON,
+        processingDurationMS: Date.now() - taskStartedAtMS,
         eventWarnings: eventHintWarnings,
-        aiHintDebug: eventHintResolution.debug
+        aiHintDebug: eventHintResolution.debug,
+        cdsJobID
       });
       debugContext.eventAndItemsExtraction = {
         extractionID: eventAndItemsExtractionResult?.extractionID || null,
@@ -867,6 +880,7 @@ export async function submitMediaForTranscription(options) {
       silenceMinSecs,
       silenceMinSecsToSave,
       isSilenceForceRecreate,
+      cdsJobID,
       reportProgress
     });
     const { silenceAnalysis } = silenceResolution;
@@ -880,7 +894,7 @@ export async function submitMediaForTranscription(options) {
     });
     const chunkMap = buildChunkMapFromSilence({
       silenceIntervals: chunkingSilenceIntervals,
-      analyzedDurationMS: silenceAnalysis.analyzedDurationMS
+      analyzedDurationMS: silenceAnalysis.mediaDurationMS
     });
     const segmentPlan = planSegmentSubmission({
       chunkMap,
@@ -958,9 +972,8 @@ export async function submitMediaForTranscription(options) {
       }
     }
 
-    const providerJobID = providerSubmissions.length === 1
-      ? providerSubmissions[0].providerJobID
-      : `CHUNKED:${String(provider).toUpperCase()}:${providerSubmissions.length}:${providerSubmissions[0].providerJobID}`;
+    // Keep a concrete provider job reference on the transcript; future provider-backed paths (for example TTS) should do the same.
+    const providerJobID = providerSubmissions[0]?.providerJobID || undefined;
     const providerJobIDs = providerSubmissions.map(s => s.providerJobID);
     const providerOptionWarnings = [
       ...new Set(
@@ -1010,8 +1023,10 @@ export async function submitMediaForTranscription(options) {
     currentStage = 'update-transcript-provider-state';
     const silenceExtractionID = silenceResolution.debug.extractionID || silenceResolution.debug.reusedExtractionID || null;
     await client.updateTranscript(customerID, transcriptID, {
+      processingDurationMS: Date.now() - taskStartedAtMS,
       providerName: normalizeProviderName(provider),
       providerJobID,
+      cdsJobID: cdsJobID || undefined,
       providerMeta: {
         ...providerMetaForTranscript,
         ...buildProviderMetaWithExecutionContext({}, { cdsJobID, cdsWorkerID }),
@@ -1086,7 +1101,9 @@ export async function submitMediaForTranscription(options) {
     if (!pollingResult?.success) {
       statsTracker.TOTAL_TASK_TIME_MS = Date.now() - taskStartedAtMS;
       await client.updateTranscript(customerID, transcriptID, {
+        processingDurationMS: Date.now() - taskStartedAtMS,
         status: 'FAILED',
+        cdsJobID: cdsJobID || undefined,
         providerMeta: {
           ...providerMetaForTranscript,
           ...buildProviderMetaWithExecutionContext({}, { cdsJobID, cdsWorkerID }),
@@ -1173,7 +1190,7 @@ export async function submitMediaForTranscription(options) {
           isReusedExisting: silenceResolution.debug.isReusedExisting,
           isForceRecreate: silenceResolution.debug.isForceRecreate,
           totalSilenceMS: totalSavedSilenceMS,
-          analyzedDurationMS: silenceAnalysis.analyzedDurationMS,
+          mediaDurationMS: silenceAnalysis.mediaDurationMS,
           silenceIntervalCount: savedSilenceIntervals.length,
           chunkingSilenceIntervalCount: chunkingSilenceIntervals.length,
           nonSilentChunkCount: chunkMap.length
@@ -1190,7 +1207,9 @@ export async function submitMediaForTranscription(options) {
           ? existingTranscript.providerMeta
           : {};
         await client.updateTranscript(customerID, transcriptID, {
+          processingDurationMS: Date.now() - taskStartedAtMS,
           status: 'FAILED',
+          cdsJobID: cdsJobID || undefined,
           providerMeta: {
             ...existingProviderMeta,
             ...buildProviderMetaWithExecutionContext(existingProviderMeta, { cdsJobID, cdsWorkerID }),
@@ -1469,6 +1488,7 @@ export async function submitMediaForSilenceExtraction(options) {
       silenceMinSecs,
       silenceMinSecsToSave,
       isSilenceForceRecreate,
+      cdsJobID,
       reportProgress
     });
 
@@ -1481,22 +1501,34 @@ export async function submitMediaForSilenceExtraction(options) {
       scheduleFileCleanup(localAACPath, localAACCacheTTLMS);
     }
 
+    const silenceExtractionID = silenceResolution?.debug?.extractionID || silenceResolution?.debug?.reusedExtractionID || null;
+    if (silenceExtractionID) {
+      statsTracker.CDS_EXTRACTION_ID = silenceExtractionID;
+    }
+    statsTracker.SILENCE_MATCHED_EXTRACTION_COUNT = Number(silenceResolution?.debug?.matchedExtractionCount || 0);
+    statsTracker.SILENCE_IS_REUSED_EXISTING = Boolean(silenceResolution?.debug?.isReusedExisting);
+    const totalTaskTimeMS = Date.now() - taskStartedAtMS;
+    statsTracker.TOTAL_TASK_TIME_MS = totalTaskTimeMS;
+
     return {
       success: true,
-      extractionID: silenceResolution?.debug?.extractionID || silenceResolution?.debug?.reusedExtractionID || null,
+      extractionID: silenceExtractionID,
       mediaSource,
       audioExtracted,
+      jobStateTracker: {
+        ...statsTracker
+      },
       details: {
         silenceDetection: {
           source: silenceResolution.debug.source,
           isReusedExisting: silenceResolution.debug.isReusedExisting,
           isForceRecreate: silenceResolution.debug.isForceRecreate,
-          extractionID: silenceResolution.debug.extractionID || silenceResolution.debug.reusedExtractionID || null,
+          extractionID: silenceExtractionID,
           matchedExtractionCount: silenceResolution.debug.matchedExtractionCount
         },
         silenceAnalysis: {
           totalSilenceMS: silenceResolution.totalSavedSilenceMS,
-          analyzedDurationMS: silenceResolution.silenceAnalysis?.analyzedDurationMS,
+          mediaDurationMS: silenceResolution.silenceAnalysis?.mediaDurationMS,
           silenceIntervalCount: silenceResolution.savedSilenceIntervals?.length || 0,
           chunkingSilenceIntervalCount: silenceResolution.chunkingSilenceIntervals?.length || 0,
           silenceDetectMinSecs,
@@ -1505,7 +1537,7 @@ export async function submitMediaForSilenceExtraction(options) {
         },
         stats: {
           ...statsTracker,
-          TOTAL_TASK_TIME_MS: Date.now() - taskStartedAtMS
+          TOTAL_TASK_TIME_MS: totalTaskTimeMS
         }
       }
     };
@@ -1549,10 +1581,18 @@ export async function processIngestionJob(job, deps = {}) {
 
   switch (scope) {
     case JobScopes.INGEST_PROVIDER_JSON:
-      return ingestProviderJSON(payload.content, payload.options);
+      return ingestProviderJSON(payload.content, {
+        ...(payload?.options || {}),
+        cdsJobID: job?.jobID,
+        cdsWorkerID: deps.workerID
+      });
 
     case JobScopes.INGEST_CAPTION_FILE:
-      return ingestCaptionFile(payload.content, payload.options);
+      return ingestCaptionFile(payload.content, {
+        ...(payload?.options || {}),
+        cdsJobID: job?.jobID,
+        cdsWorkerID: deps.workerID
+      });
 
     case JobScopes.TRANSCRIBE_MEDIA:
       return submitMediaForTranscription({
@@ -1737,6 +1777,7 @@ async function createOrReuseTranscript(params) {
     compatibilityExternalMediaIDs = [],
     externalMediaPath,
     provider,
+    processingDurationMS,
     cdsJobID,
     cdsWorkerID
   } = params;
@@ -1748,10 +1789,12 @@ async function createOrReuseTranscript(params) {
   try {
     return await client.createTranscript(customerID, {
       ...STT_EN_TRANSCRIPT_IDENTITY,
+      processingDurationMS: Number(processingDurationMS || 0),
       ...targetPayload,
       textOriginal: '',
       textOriginalSource: `AUTOGEN:${String(provider).toUpperCase()}`,
       providerName: normalizedProviderName,
+      cdsJobID: cdsJobID || undefined,
       providerMeta: buildProviderMetaWithExecutionContext({}, {
         cdsJobID,
         cdsWorkerID,
@@ -1788,6 +1831,8 @@ async function createOrReuseTranscript(params) {
   ) {
     await client.updateTranscript(customerID, existingTranscript._id, {
       ...targetPayload,
+      processingDurationMS: Number(processingDurationMS || 0),
+      cdsJobID: cdsJobID || undefined,
       providerMeta: buildProviderMetaWithExecutionContext(existingProviderMeta, {
         cdsJobID,
         cdsWorkerID,
@@ -1901,6 +1946,7 @@ async function resolveSilenceForTranscription(params) {
     silenceMinSecs,
     silenceMinSecsToSave,
     isSilenceForceRecreate,
+    cdsJobID,
     reportProgress,
     analyzeSilenceHandler = analyzeSilence
   } = params;
@@ -1965,12 +2011,18 @@ async function resolveSilenceForTranscription(params) {
     }
   }
 
+  const silenceProcessingStartedAtMS = Date.now();
   const silenceAnalysis = await analyzeSilenceHandler(audioPath, {
     noiseDB: silenceNoiseDB,
     minSilenceSecs: silenceDetectMinSecs
   });
-  const chunkingSilenceIntervals = filterSilenceIntervalsByMinSecs(silenceAnalysis.silenceIntervals, silenceMinSecs);
-  const savedSilenceIntervals = filterSilenceIntervalsByMinSecs(silenceAnalysis.silenceIntervals, silenceMinSecsToSave);
+  const normalizedSilenceAnalysis = {
+    ...silenceAnalysis,
+    mediaDurationMS: Number(silenceAnalysis?.mediaDurationMS || 0),
+    processingDurationMS: Date.now() - silenceProcessingStartedAtMS
+  };
+  const chunkingSilenceIntervals = filterSilenceIntervalsByMinSecs(normalizedSilenceAnalysis.silenceIntervals, silenceMinSecs);
+  const savedSilenceIntervals = filterSilenceIntervalsByMinSecs(normalizedSilenceAnalysis.silenceIntervals, silenceMinSecsToSave);
   const totalSavedSilenceMS = sumSilenceDurationMS(savedSilenceIntervals);
   const createdExtraction = await createSilenceExtractionAndItems({
     client,
@@ -1978,11 +2030,12 @@ async function resolveSilenceForTranscription(params) {
     mediaID,
     externalMediaID,
     externalMediaPath,
-    silenceAnalysis
+    cdsJobID,
+    silenceAnalysis: normalizedSilenceAnalysis
   });
   const createdExtractionID = String(createdExtraction?._id || createdExtraction?.extractionID || '').trim();
   return {
-    silenceAnalysis,
+    silenceAnalysis: normalizedSilenceAnalysis,
     chunkingSilenceIntervals,
     savedSilenceIntervals,
     totalSavedSilenceMS,
@@ -2007,13 +2060,17 @@ async function createOrReplaceEventAndItemsExtraction(params) {
     compatibilityExternalMediaIDs = [],
     cdsV1EventID,
     keywordListJSON = [],
+    processingDurationMS,
     eventWarnings = [],
-    aiHintDebug = {}
+    aiHintDebug = {},
+    cdsJobID
   } = params;
 
   const normalizedKeywordList = normalizeKeywordListJSON(keywordListJSON);
   void eventWarnings;
-  void aiHintDebug;
+  const normalizedAIHintMeta = normalizeAIHintMeta(aiHintDebug);
+  const keywordExtractionProviderName = resolveKeywordExtractionProviderName(aiHintDebug);
+  const keywordExtractionProviderMeta = buildKeywordExtractionProviderMeta(aiHintDebug);
   const normalizedCdsV1EventID = Number(cdsV1EventID);
   if (!Number.isInteger(normalizedCdsV1EventID) || normalizedCdsV1EventID <= 0 || normalizedKeywordList.length === 0) {
     return {
@@ -2046,10 +2103,14 @@ async function createOrReplaceEventAndItemsExtraction(params) {
     extractionKind: 'KEYWORD_EXTRACTION',
     offsetUnit: 'NONE',
     status: 'COMPLETE',
-    providerName: 'INTERNAL',
+    processingDurationMS: Number(processingDurationMS || 0),
+    providerName: keywordExtractionProviderName,
+    cdsJobID: cdsJobID || undefined,
+    providerMeta: keywordExtractionProviderMeta,
     ...targetPayload,
     extractionData: {
-      keywordListJSON: normalizedKeywordList
+      keywordListJSON: normalizedKeywordList,
+      aiHintMeta: normalizedAIHintMeta
     }
   });
   const extractionID = String(extraction?._id || extraction?.extractionID || '').trim();
@@ -2135,6 +2196,45 @@ function normalizeKeywordListJSON(keywordListJSON) {
       .map((item) => String(item || '').trim())
       .filter(Boolean)
   )];
+}
+
+function normalizeAIHintMeta(aiHintDebug = {}) {
+  const source = (aiHintDebug && typeof aiHintDebug === 'object') ? aiHintDebug : {};
+  const aiProvider = String(source.llmProvider || source.provider || '').trim();
+  const aiFailureReason = String(source.llmFailureReason || '').trim();
+  const aiFailureCode = String(source.llmFailureCode || '').trim();
+  return {
+    isAIHintEnabled: Boolean(source.isEnabled),
+    isAIHintApplied: Boolean(source.isApplied),
+    isAIUsed: Boolean(source.isLLMUsed),
+    aiProvider,
+    aiFailureReason,
+    aiFailureCode,
+    eventKeyTermCount: Number(source.eventKeyTermCount || 0),
+    callerKeyTermCount: Number(source.callerKeyTermCount || 0),
+    finalKeyTermCount: Number(source.finalKeyTermCount || 0)
+  };
+}
+
+function resolveKeywordExtractionProviderName(aiHintDebug = {}) {
+  const source = (aiHintDebug && typeof aiHintDebug === 'object') ? aiHintDebug : {};
+  const llmProvider = String(source.llmProvider || source.provider || '').trim().toUpperCase();
+  if (source.isLLMUsed === true && llmProvider) {
+    return llmProvider;
+  }
+  return 'HEURISTIC';
+}
+
+function buildKeywordExtractionProviderMeta(aiHintDebug = {}) {
+  const source = (aiHintDebug && typeof aiHintDebug === 'object') ? aiHintDebug : {};
+  const llmInputTexts = Array.isArray(source.llmInputTexts) ? source.llmInputTexts : [];
+  const llmInputWordCount = llmInputTexts
+    .map((text) => String(text || '').trim())
+    .filter(Boolean)
+    .reduce((total, text) => total + text.split(/\s+/).filter(Boolean).length, 0);
+  return {
+    llmInputWordCount
+  };
 }
 
 async function findMostRecentSilenceExtraction(params) {
@@ -2235,35 +2335,66 @@ function buildSilenceAnalysisFromExistingExtraction(params) {
   const meta = (extractionData?.silenceAnalysisMeta && typeof extractionData.silenceAnalysisMeta === 'object')
     ? extractionData.silenceAnalysisMeta
     : {};
-  const inferredAnalyzedDurationMS = silenceIntervals.length > 0
+  const inferredMediaDurationMS = silenceIntervals.length > 0
     ? Math.max(...silenceIntervals.map((interval) => Number(interval.endMS || 0)))
     : 0;
-  const analyzedDurationMS = Number(extractionData?.analyzedDurationMS);
-  const normalizedAnalyzedDurationMS = Number.isFinite(analyzedDurationMS) && analyzedDurationMS >= 0
-    ? analyzedDurationMS
-    : inferredAnalyzedDurationMS;
-  const analyzedAt = String(meta.analyzedAt || extraction?.updatedAt || extraction?.createdAt || new Date().toISOString());
+  const mediaDurationMS = Number(extractionData?.mediaDurationMS);
+  const normalizedMediaDurationMS = Number.isFinite(mediaDurationMS) && mediaDurationMS >= 0
+    ? mediaDurationMS
+    : inferredMediaDurationMS;
+  const processingDurationMS = Number(extraction?.processingDurationMS);
+  const analyzedAt = String(extractionData?.analyzedAt || extraction?.updatedAt || extraction?.createdAt || new Date().toISOString());
+  const detectedSilenceStats = summarizeSilenceIntervals(silenceIntervals);
+  const normalizedVolumedetectMeta = (
+    extractionData?.volumedetectMeta
+    && typeof extractionData.volumedetectMeta === 'object'
+    && !Array.isArray(extractionData.volumedetectMeta)
+  ) ? { ...extractionData.volumedetectMeta } : {};
+  if (!normalizedVolumedetectMeta.tool) {
+    normalizedVolumedetectMeta.tool = 'ffmpeg:volumedetect';
+  }
   return {
     silenceAnalysis: {
       silenceIntervals,
       totalSilenceMS: sumSilenceDurationMS(silenceIntervals),
-      analyzedDurationMS: normalizedAnalyzedDurationMS,
+      mediaDurationMS: normalizedMediaDurationMS,
+      analyzedAt,
       isSilenceAnalyzed: true,
+      processingDurationMS: Number.isFinite(processingDurationMS) && processingDurationMS >= 0 ? processingDurationMS : 0,
+      volumedetectMeta: normalizedVolumedetectMeta,
       silenceAnalysisMeta: {
         noiseDB: Number.isFinite(Number(meta.noiseDB)) ? Number(meta.noiseDB) : silenceNoiseDB,
         minSilenceSecs: Number.isFinite(Number(meta.minSilenceSecs)) ? Number(meta.minSilenceSecs) : silenceDetectMinSecs,
-        tool: String(meta.tool || 'coreapi:extractions'),
-        analyzedAt
+        totalDetectedSilenceCount: Number.isFinite(Number(meta.totalDetectedSilenceCount))
+          ? Number(meta.totalDetectedSilenceCount)
+          : detectedSilenceStats.totalDetectedSilenceCount,
+        minDetectedSilenceLengthMS: Number.isFinite(Number(meta.minDetectedSilenceLengthMS))
+          ? Number(meta.minDetectedSilenceLengthMS)
+          : detectedSilenceStats.minDetectedSilenceLengthMS,
+        maxDetectedSilenceLengthMS: Number.isFinite(Number(meta.maxDetectedSilenceLengthMS))
+          ? Number(meta.maxDetectedSilenceLengthMS)
+          : detectedSilenceStats.maxDetectedSilenceLengthMS,
+        tool: String(meta.tool || 'coreapi:extractions')
       }
     }
   };
 }
 
 async function createSilenceExtractionAndItems(params) {
-  const { client, customerID, mediaID, externalMediaID, externalMediaPath, silenceAnalysis } = params;
+  const { client, customerID, mediaID, externalMediaID, externalMediaPath, silenceAnalysis, cdsJobID } = params;
   const extractedSilenceIntervals = normalizeSilenceIntervalsFromExtractionData({
     silenceIntervals: silenceAnalysis?.silenceIntervals
   });
+  const detectedSilenceStats = summarizeSilenceIntervals(extractedSilenceIntervals);
+  const normalizedVolumedetectMeta = (
+    silenceAnalysis?.volumedetectMeta
+    && typeof silenceAnalysis.volumedetectMeta === 'object'
+    && !Array.isArray(silenceAnalysis.volumedetectMeta)
+  ) ? { ...silenceAnalysis.volumedetectMeta } : {};
+  if (!normalizedVolumedetectMeta.tool) {
+    normalizedVolumedetectMeta.tool = 'ffmpeg:volumedetect';
+  }
+  delete normalizedVolumedetectMeta.analyzedAt;
   const targetPayload = buildExtractionTargetFieldsForMedia({
     mediaID,
     externalMediaID
@@ -2272,18 +2403,33 @@ async function createSilenceExtractionAndItems(params) {
     extractionKind: 'SILENCE_DETECTION',
     offsetUnit: 'MS',
     status: 'COMPLETE',
+    processingDurationMS: Number(silenceAnalysis?.processingDurationMS || 0),
     ...targetPayload,
     providerName: 'FFMPEG',
+    cdsJobID: cdsJobID || undefined,
     extractionData: {
       isSilenceAnalyzed: Boolean(silenceAnalysis?.isSilenceAnalyzed),
-      analyzedDurationMS: Number(silenceAnalysis?.analyzedDurationMS || 0),
+      mediaDurationMS: Number(silenceAnalysis?.mediaDurationMS || 0),
+      analyzedAt: String(silenceAnalysis?.analyzedAt || new Date().toISOString()),
       totalSilenceMS: sumSilenceDurationMS(extractedSilenceIntervals),
       silenceIntervals: extractedSilenceIntervals,
+      volumedetectMeta: normalizedVolumedetectMeta,
       silenceAnalysisMeta: {
         noiseDB: Number(silenceAnalysis?.silenceAnalysisMeta?.noiseDB),
         minSilenceSecs: Number(silenceAnalysis?.silenceAnalysisMeta?.minSilenceSecs),
-        tool: String(silenceAnalysis?.silenceAnalysisMeta?.tool || 'ffmpeg:silencedetect'),
-        analyzedAt: String(silenceAnalysis?.silenceAnalysisMeta?.analyzedAt || new Date().toISOString())
+        totalDetectedSilenceCount: Number(
+          silenceAnalysis?.silenceAnalysisMeta?.totalDetectedSilenceCount
+          ?? detectedSilenceStats.totalDetectedSilenceCount
+        ),
+        minDetectedSilenceLengthMS: Number(
+          silenceAnalysis?.silenceAnalysisMeta?.minDetectedSilenceLengthMS
+          ?? detectedSilenceStats.minDetectedSilenceLengthMS
+        ),
+        maxDetectedSilenceLengthMS: Number(
+          silenceAnalysis?.silenceAnalysisMeta?.maxDetectedSilenceLengthMS
+          ?? detectedSilenceStats.maxDetectedSilenceLengthMS
+        ),
+        tool: String(silenceAnalysis?.silenceAnalysisMeta?.tool || 'ffmpeg:silencedetect')
       },
       ...(externalMediaPath ? { externalMediaPath } : {})
     }
@@ -3441,6 +3587,9 @@ export const __testables = {
   findMostRecentEventAndItemsExtraction,
   normalizeEventAndItemsRows,
   normalizeKeywordListJSON,
+  normalizeAIHintMeta,
+  resolveKeywordExtractionProviderName,
+  buildKeywordExtractionProviderMeta,
   findMostRecentSilenceExtraction,
   normalizeSilenceIntervalsFromExtractionData,
   buildSilenceAnalysisFromExistingExtraction

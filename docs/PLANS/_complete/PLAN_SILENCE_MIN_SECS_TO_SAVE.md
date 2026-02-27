@@ -9,7 +9,7 @@ Current behavior uses a single threshold (`silenceMinSecs`) for:
 
 This means persisted silence intervals are currently tied to request/runtime `silenceMinSecs`, and can miss shorter silence periods that should be saved.
 
-The config already includes `media.SILENCE_MIN_SECS_TO_SAVE` in `cds-automated-minutes.LOCALDEV.appConfig.json`, but backend config parsing/runtime logic does not currently use it.
+The config already includes `media.SILENCE_MIN_SECS_TO_SAVE` in `cds-extraction-engine.LOCALDEV.appConfig.json`, but backend config parsing/runtime logic does not currently use it.
 
 ## Goal
 

@@ -107,6 +107,7 @@ export async function processTranscriptionPollJob(job, deps = {}) {
       : {};
     await coreApiClient.updateTranscript(customerID, transcriptID, {
       status: 'FAILED',
+      cdsJobID: executionContext?.cdsJobID || undefined,
       providerMeta: buildProviderMetaWithExecutionContext({
         existingProviderMeta,
         executionContext,
@@ -137,6 +138,7 @@ export async function processTranscriptionPollJob(job, deps = {}) {
       : {};
     await coreApiClient.updateTranscript(customerID, transcriptID, {
       status: 'RUNNING',
+      cdsJobID: executionContext?.cdsJobID || undefined,
       providerMeta: buildProviderMetaWithExecutionContext({
         existingProviderMeta,
         executionContext,

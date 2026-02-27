@@ -75,6 +75,7 @@ export async function persistFinalizedTranscript(params) {
       textOriginalSource,
       providerName,
       providerJobID: transcriptInfo.providerJobID,
+      cdsJobID: executionContext?.cdsJobID || undefined,
       providerMeta,
       status: 'COMPLETE'
     });

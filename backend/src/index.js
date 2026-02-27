@@ -35,7 +35,7 @@ async function main() {
       return reply.status(503).send({
         status: 'degraded',
         timestamp: new Date().toISOString(),
-        service: 'cds-automated-minutes',
+        service: 'cds-extraction-engine',
         queue: {
           isReady: false
         }
@@ -45,7 +45,7 @@ async function main() {
     return reply.status(200).send({
       status: 'ok',
       timestamp: new Date().toISOString(),
-      service: 'cds-automated-minutes',
+      service: 'cds-extraction-engine',
       queue: {
         isReady: true,
         workerID: queueStatus.workerID

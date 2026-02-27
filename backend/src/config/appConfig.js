@@ -8,7 +8,7 @@ export async function initializeConfig() {
     return appConfig;
   }
 
-  const cdsProjectName = process.env.CDS_PROJECT_NAME || 'cds-automated-minutes';
+  const cdsProjectName = process.env.CDS_PROJECT_NAME || 'cds-extraction-engine';
   if (!process.env.CDS_RELEASEMODE) {
     process.env.CDS_RELEASEMODE = 'development';
   }
@@ -20,6 +20,8 @@ export async function initializeConfig() {
   let parsedConfig;
   try {
     const configText = await fs.readFile(configPath, 'utf8');
+    // console.log(configText);
+    // process.exit(1);
     parsedConfig = JSON.parse(configText);
   } catch (error) {
     throw new Error(`Failed to load config file at ${configPath}: ${error.message}`);

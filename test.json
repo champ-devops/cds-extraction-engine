@@ -44,7 +44,7 @@
 		"SERVER_HOST": "host.docker.internal",
 		"SERVER_PORT": 7001,
 		"URL_PREFIX": "/v1",
-		"API_TOKEN": "com-champds-coreapi.LOCALDEV:cds-automated-minutes:85c52bd9-0304-4173-83c4-8754797d41c3",
+		"API_TOKEN": "com-champds-coreapi.LOCALDEV:cds-extraction-engine:85c52bd9-0304-4173-83c4-8754797d41c3",
 		"TIMEOUT_CONNECT_MS": 10000
 	}
 }

@@ -17,7 +17,7 @@ Example response:
 {
   "status": "ok",
   "timestamp": "2026-02-11T00:00:00.000Z",
-  "service": "cds-automated-minutes",
+  "service": "cds-extraction-engine",
   "queue": {
     "isReady": true,
     "workerID": "automated-minutes-worker-host-12345"

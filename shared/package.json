@@ -1,5 +1,5 @@
 {
-  "name": "cds-automated-minutes-shared",
+  "name": "cds-extraction-engine-shared",
   "private": true,
   "version": "0.1.0",
   "description": "Shared types/contracts/utilities for CDS automated minutes",
